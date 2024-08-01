@@ -1,4 +1,3 @@
-
 import streamlit as st
 from streamlit_option_menu import option_menu
 import firebase_admin
@@ -22,22 +21,21 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 #external python files
 import configuration, playground
 
+# Ensure the key is set before accessing it
+if "is_streamlit_deployed" not in st.session_state:
+    st.session_state["is_streamlit_deployed"] = True
 
 if "api_keys" not in st.session_state:
     st.session_state["api_keys"] = {}
-    
 
 if "connext_chatbot_admin_credentials" not in st.session_state:
     st.session_state["connext_chatbot_admin_credentials"] = None
 
-if "is_streamlit_deployed" not in st.session_state:
-    st.session_state["is_streamlit_deployed"] = True
-
 if "oauth_creds" not in st.session_state:
     st.session_state["oauth_creds"] = None
 
-#Configure this one to True if deployed on streamlit community cloud or on local machine
-#This helps change the json file and api key loading
+# Configure this one to True if deployed on Streamlit community cloud or on local machine
+# This helps change the json file and api key loading
 st.session_state["is_streamlit_deployed"] = True
 firebase_api_key = None
 google_ai_api_key = None
@@ -72,7 +70,7 @@ else:
     st.session_state["api_keys"]["FIREBASE_API_KEY"] = firebase_api_key
     st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"] = google_ai_api_key 
 
-#Firebase SDK initialization
+# Firebase SDK initialization
 if not firebase_admin._apps:
     cred = credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"])
     firebase_admin.initialize_app(cred)
@@ -86,33 +84,33 @@ def fail_login_dialog(message):
     st.markdown("Please try again or contact administrator")
 
 def sign_in_with_email_and_password(email=None, password=None, return_secure_token=True):
-        rest_api_url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-        
+    rest_api_url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
+    
+    try:
+        payload = {
+            "returnSecureToken": return_secure_token
+        }
+        if email:
+            payload["email"] = email
+        if password:
+            payload["password"] = password
+        payload = json.dumps(payload)
+        #print('payload sigin',payload)
+        r = requests.post(rest_api_url, params={"key": firebase_api_key}, data=payload)
+        data = r.json()
         try:
-            payload = {
-                "returnSecureToken": return_secure_token
+            user_info = {
+                'email': data['email'],
+                'username': data.get('displayName')  # Retrieve username if available
             }
-            if email:
-                payload["email"] = email
-            if password:
-                payload["password"] = password
-            payload = json.dumps(payload)
-            #print('payload sigin',payload)
-            r = requests.post(rest_api_url, params={"key": firebase_api_key}, data=payload)
-            data = r.json()
-            try:
-                user_info = {
-                    'email': data['email'],
-                    'username': data.get('displayName')  # Retrieve username if available
-                }
-                st.toast("Logged In Succesfully", icon="🎉")
-                return user_info, True #User Info and Login Status
-            except:
-                fail_login_dialog("Failed to login: " + data.get("error", {}).get("message", "No error message provided"))
-                return None, False #User Info and Login Status
-        except Exception as e:
-            fail_login_dialog(f"Error during login: {str(e)}")
+            st.toast("Logged In Succesfully", icon="🎉")
+            return user_info, True #User Info and Login Status
+        except:
+            fail_login_dialog("Failed to login: " + data.get("error", {}).get("message", "No error message provided"))
             return None, False #User Info and Login Status
+    except Exception as e:
+        fail_login_dialog(f"Error during login: {str(e)}")
+        return None, False #User Info and Login Status
 
 def reset_password(email):
     try:
@@ -145,7 +143,7 @@ def forget():
             st.warning(f"Password reset failed: {message}") 
 
 def login():
-    userinfo, login_status = sign_in_with_email_and_password(st.session_state.email_input,st.session_state.password_input)
+    userinfo, login_status = sign_in_with_email_and_password(st.session_state.email_input, st.session_state.password_input)
     if userinfo:
         st.session_state.username = userinfo['username']
         st.session_state.useremail = userinfo['email']
@@ -158,7 +156,7 @@ def login():
 ## Functions: End ###
 
 if 'db' not in st.session_state:
-        st.session_state.db = ''
+    st.session_state.db = ''
 
 if 'username' not in st.session_state:
     st.session_state.username = ''
@@ -166,13 +164,13 @@ if 'username' not in st.session_state:
 if 'useremail' not in st.session_state:
     st.session_state.useremail = ''
 
-if "signedout"  not in st.session_state:
+if "signedout" not in st.session_state:
     st.session_state["signedout"] = True #By default the user is signed out during intial loading
 
 if st.session_state["signedout"]: #If user is on a state of signed out
     st.markdown('## :blue[Connext Chatbot Admin] Log In :robot_face:')
     email = st.text_input('Email Address', key="email_add")
-    password = st.text_input('Password',type='password', key="password")
+    password = st.text_input('Password', type='password', key="password")
     st.session_state.email_input = email
     st.session_state.password_input = password
 
@@ -186,11 +184,11 @@ if not st.session_state["signedout"]: #If user is on a state of signed out
 
     with st.sidebar:
         selected = option_menu(
-        menu_title="Main Menu",  # required
-        options=["Configuration", "Playground"],  # required
-        icons=["wrench", "robot"],  # optional
-        menu_icon="cast",  # optional
-        default_index=0,  # optional
+            menu_title="Main Menu",  # required
+            options=["Configuration", "Playground"],  # required
+            icons=["wrench", "robot"],  # optional
+            menu_icon="cast",  # optional
+            default_index=0,  # optional
         )
 
     if selected == "Configuration":
