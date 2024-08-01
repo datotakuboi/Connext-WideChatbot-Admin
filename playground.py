@@ -26,16 +26,6 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-# Initialize session state keys
-if "is_streamlit_deployed" not in st.session_state:
-    st.session_state["is_streamlit_deployed"] = False
-
-if "connext_chatbot_admin_credentials" not in st.session_state:
-    st.session_state["connext_chatbot_admin_credentials"] = None
-
-if "api_keys" not in st.session_state:
-    st.session_state["api_keys"] = {"GOOGLE_AI_STUDIO_API_KEY": None}
-
 ### Functions: Start ###
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
@@ -112,7 +102,7 @@ def extract_and_parse_json(text):
     start_index = text.find('{')
     end_index = text.rfind('}')
     
-    if (start_index == -1 or end_index == -1 or end_index < start_index):
+    if start_index == -1 or end_index == -1 or end_index < start_index:
         return None, False  # Proper JSON structure not found
 
     # Extract the substring that contains the JSON
