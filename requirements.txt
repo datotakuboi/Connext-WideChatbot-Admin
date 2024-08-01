@@ -1,0 +1,17 @@
+streamlit
+streamlit-option-menu
+firebase-admin
+google-cloud-storage
+python-dotenv
+requests
+pdfminer.six
+langchain
+langchain-google-genai
+langchain-community
+faiss-cpu
+google-generativeai
+urllib3
+pytz
+python-dateutil
+google-auth
+google-auth-oauthlib
