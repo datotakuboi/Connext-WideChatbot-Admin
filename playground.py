@@ -383,4 +383,4 @@ def app():
             st.session_state.show_fine_tuned_expander = False
         else:
             answer_placeholder.write("Failed to generate a fine-tuned answer.")
-        st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
+       
