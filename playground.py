@@ -44,7 +44,7 @@ def load_creds():
             creds.refresh(Request())
         else:
             flow = None
-            if not st.session_state["is_streamlit_deployed"]:
+            if not st.session_state.get("is_streamlit_deployed"):
                 flow = InstalledAppFlow.from_client_secrets_file(
                     'connext_chatbot_auth.json', SCOPES)
             else:
@@ -64,8 +64,6 @@ def load_creds():
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
     return creds
-
-creds = load_creds()
 
 def download_file_to_temp(url):
     storage_client = storage.Client.from_service_account_info(st.session_state["connext_chatbot_admin_credentials"])
@@ -118,7 +116,7 @@ def get_vector_store(text_chunks, api_key):
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
-def get_generative_model(response_mime_type = "text/plain"):
+def get_generative_model(creds, response_mime_type = "text/plain"):
     generation_config = {
     "temperature": 0.4,
     "top_p": 1,
@@ -130,7 +128,7 @@ def get_generative_model(response_mime_type = "text/plain"):
     print(f"Model selected: {model}")
     return model
 
-def generate_response(question, context, fine_tuned_knowledge = False):
+def generate_response(creds, question, context, fine_tuned_knowledge = False):
     prompt_using_fine_tune_knowledge = f"""
     Based on your base or fine-tuned knowledge, can you answer the the following question?
 
@@ -165,10 +163,10 @@ def generate_response(question, context, fine_tuned_knowledge = False):
     """
 
     prompt = prompt_using_fine_tune_knowledge if fine_tuned_knowledge else prompt_with_context
-    model = get_generative_model("text/plain" if fine_tuned_knowledge else "application/json")
+    model = get_generative_model(creds, "text/plain" if fine_tuned_knowledge else "application/json")
     return model.generate_content(prompt).text
 
-def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
+def try_get_answer(creds, user_question, context="", fine_tuned_knowledge = False):
     parsed_result = {}
     if not fine_tuned_knowledge:
         response_json_valid = False
@@ -177,7 +175,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
         while not response_json_valid and max_attempts > 0:
             response = ""
             try:
-                response = generate_response(user_question, context, fine_tuned_knowledge)
+                response = generate_response(creds, user_question, context, fine_tuned_knowledge)
             except Exception as e:
                 max_attempts -= 1
                 st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
@@ -195,7 +193,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
             break
     else:
         try:
-            parsed_result = generate_response(user_question, context, fine_tuned_knowledge)
+            parsed_result = generate_response(creds, user_question, context, fine_tuned_knowledge)
         except Exception as e:
             parsed_result = ""
             st.toast(f"Failed to create a response for your query.")
@@ -209,7 +207,8 @@ def user_input(user_question, api_key):
         docs = new_db.similarity_search(user_question)
         context = "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
         full_context = f"{st.session_state.conversation_context}\n\n{context}"
-        parsed_result = try_get_answer(user_question, full_context)
+        creds = load_creds()
+        parsed_result = try_get_answer(creds, user_question, full_context)
         if parsed_result:
             st.session_state.chat_history.append({
                 "user_question": user_question,
@@ -323,7 +322,8 @@ def playground():
                             st.rerun()
 
     if st.session_state["request_fine_tuned_answer"]:
-        fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+        creds = load_creds()
+        fine_tuned_result = try_get_answer(creds, user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
             st.session_state.chat_history[-1]["response"] = fine_tuned_result.strip()
             st.session_state.show_fine_tuned_expander = False
