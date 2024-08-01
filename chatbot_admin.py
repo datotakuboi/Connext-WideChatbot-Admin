@@ -196,6 +196,6 @@ if not st.session_state["signedout"]: #If user is on a state of signed out
     if selected == "Configuration":
         configuration.app()
     elif selected == "Playground":
-        playground.playground()
+        playground.app()
 
 ### For Log-in Page: End ###
