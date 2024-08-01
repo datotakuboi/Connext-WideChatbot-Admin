@@ -42,7 +42,7 @@ if not firebase_admin._apps:
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
 
-@st.experimental_dialog("Google Consent Authentication Link")
+@st.dialog("Google Consent Authentication Link")
 def google_oauth_link(flow):
     auth_url, _ = flow.authorization_url(prompt='consent')
     st.write("Please go to this URL and authorize access:")
@@ -100,7 +100,7 @@ def download_file_from_url(url):
         temp_file_path = os.path.join(temp_dir, file_name)
 
         response = requests.get(url, stream=True)
-        if response.status_code == 200:
+        if response.status_code == 200):
             with open(temp_file_path, 'wb') as file:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
