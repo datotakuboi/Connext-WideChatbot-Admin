@@ -22,13 +22,22 @@ import datetime
 import requests
 import json
 
-#Initialize session_state values
+# Initialize session_state values
 if "oauth_creds" not in st.session_state:
     st.session_state["oauth_creds"] = None
 
+if "api_keys" not in st.session_state:
+    st.session_state["api_keys"] = {}
+
+if "connext_chatbot_admin_credentials" not in st.session_state:
+    st.session_state["connext_chatbot_admin_credentials"] = None
+
+if "is_streamlit_deployed" not in st.session_state:
+    st.session_state["is_streamlit_deployed"] = True
+
 # Initialize Firebase SDK
 if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["service_account"]))
+    cred = credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"])
     firebase_admin.initialize_app(cred)
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
