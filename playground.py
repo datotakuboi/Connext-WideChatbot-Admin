@@ -48,19 +48,19 @@ def load_creds():
             creds.refresh(Request())
         else:
             flow = None
-            if not st.session_state["is_streamlit_deployed"]:
+            if not st.session_state.get("is_streamlit_deployed", True):
                 flow = InstalledAppFlow.from_client_secrets_file(
                     'connext_chatbot_auth.json', SCOPES)
             else:
                 # Load client config from Streamlit secrets
                 client_config = {
                     "installed": {
-                        "client_id": st.secrets["installed"]["client_id"],
-                        "project_id": st.secrets["installed"]["project_id"],
+                        "client_id": st.secrets["web"]["client_id"],
+                        "project_id": st.secrets["web"]["project_id"],
                         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                         "token_uri": "https://oauth2.googleapis.com/token",
                         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                        "client_secret": st.secrets["installed"]["client_secret"],
+                        "client_secret": st.secrets["web"]["client_secret"],
                         "redirect_uris": ["http://localhost"]
                     }
                 }
@@ -125,7 +125,7 @@ def is_expected_json_content(json_data):
     required_keys = ["Is_Answer_In_Context", "Answer"]
 
     if not all(key in data for key in required_keys):
-            return False
+        return False
     
     return True #All checks passed for the specified type
 
@@ -148,18 +148,16 @@ def get_vector_store(text_chunks, api_key):
 
 def get_generative_model(response_mime_type = "text/plain"):
     generation_config = {
-    "temperature": 0.4,
-    "top_p": 1,
-    "max_output_tokens": 8192,
-    "response_mime_type": response_mime_type
+        "temperature": 0.4,
+        "top_p": 1,
+        "max_output_tokens": 8192,
+        "response_mime_type": response_mime_type
     }
     genai.configure(credentials=creds)
 
-
-    model = genai.GenerativeModel('tunedModels/connext-wide-chatbot-ddal5ox9d38h' ,generation_config=generation_config) if response_mime_type == "text/plain" else genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
+    model = genai.GenerativeModel('tunedModels/connext-wide-chatbot-ddal5ox9d38h', generation_config=generation_config) if response_mime_type == "text/plain" else genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
     print(f"Model selected: {model}")
     return model
-
 
 def generate_response(question, context, fine_tuned_knowledge = False):
 
@@ -177,7 +175,6 @@ def generate_response(question, context, fine_tuned_knowledge = False):
 
     """
     prompt_with_context = f"""
-
     Answer the question below as detailed as possible from the provided context below, make sure to provide all the details but if the answer is not in
     provided context. Try not to make up an answer just for the sake of answering a question.
 
@@ -266,20 +263,19 @@ def user_input(user_question, api_key):
     
 
 def app():
-
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
-    #Get firestore client
-    firestore_db=firestore.client()
-    st.session_state.db=firestore_db
+    # Get firestore client
+    firestore_db = firestore.client()
+    st.session_state.db = firestore_db
 
     # Center the logo image
-    col1, col2, col3 = st.columns([3,4,3])
+    col1, col2, col3 = st.columns([3, 4, 3])
 
     with col1:
         st.write(' ')
 
     with col2:
-        st.image("Connext_Logo.png", width=250) 
+        st.image("Connext_Logo.png", width=250)
 
     with col3:
         st.write(' ')
@@ -329,7 +325,7 @@ def app():
         st.title("PDF Document Selection:")
         st.session_state["selected_retrievers"] = st.multiselect("Select Documents", list(st.session_state["retrievers"].keys()))  
         
-        #Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
+        # Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
         if st.button("Submit & Process", key="process_button"):
             if google_ai_api_key:
                 with st.spinner("Processing..."):
