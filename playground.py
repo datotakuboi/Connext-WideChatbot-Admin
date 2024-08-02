@@ -13,6 +13,7 @@ import requests
 import tempfile
 from functools import partial
 import datetime
+import pytz
 import mimetypes
 from pdfminer.high_level import extract_text
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -30,49 +31,46 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
 
+@st.dialog("Google Consent Authentication Link")
+def google_oauth_link(flow):
+    auth_url, _ = flow.authorization_url(redirect_uris=st.secrets["web"]["redirect_uris"], prompt='consent')
+    st.write("Please go to this URL and authorize access:")
+    st.markdown(f"[Sign in with Google]({auth_url})", unsafe_allow_html=True)
+    code = st.text_input("Enter the authorization code:")
+    return code
+
 def load_creds():
-    """Converts client_secret.json to a credential object.
+    """Load credentials from Streamlit secrets and handle them using a temporary file."""
+    # Parse the token data from Streamlit's secrets
+    token_info = {
+        'token': st.secrets["token"]["value"],
+        'refresh_token': st.secrets["token"]["refresh_token"],
+        'token_uri': st.secrets["token"]["token_uri"],
+        'client_id': st.secrets["token"]["client_id"],
+        'client_secret': st.secrets["token"]["client_secret"],
+        'scopes': st.secrets["token"]["scopes"],
+        'expiry': st.secrets["token"]["expiry"]  # Assuming expiry is directly usable
+    }
 
-    This function caches the generated tokens to minimize the use of the
-    consent screen.
-    """
-    creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = None
-            if not st.session_state["is_streamlit_deployed"]:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    'connext_chatbot_auth.json', SCOPES)
-            else:
-                # Load client config from Streamlit secrets
-                client_config = {
-                    "installed": {
-                        "client_id": st.secrets["installed"]["client_id"],
-                        "project_id": st.secrets["installed"]["project_id"],
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                        "client_secret": st.secrets["installed"]["client_secret"],
-                        "redirect_uris": ["http://localhost"]
-                    }
-                }
-                # Initiate the flow using the client configuration from secrets
-                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+    # Create a temporary file to store the token data
+    temp_dir = tempfile.mkdtemp()
+    token_file_path = os.path.join(temp_dir, 'token.json')
+    with open(token_file_path, 'w') as token_file:
+        json.dump(token_info, token_file)
+
+    # Load the credentials from the temporary file
+    creds = Credentials.from_authorized_user_file(token_file_path, SCOPES)
+
+    # Refresh the token if necessary
+    if creds and creds.expired and creds.refresh_token:
+        st.toast("Currently refreshing token...")
+        creds.refresh(Request())
+
+        # Optionally update the temporary file with the refreshed token data
+        with open(token_file_path, 'w') as token_file:
+            token_file.write(creds.to_json())
+
     return creds
-
-creds = load_creds()
 
 def download_file_to_temp(url):
     # Create a temporary directory
@@ -153,7 +151,12 @@ def get_generative_model(response_mime_type = "text/plain"):
     "max_output_tokens": 8192,
     "response_mime_type": response_mime_type
     }
-    genai.configure(credentials=creds)
+
+    if st.session_state["oauth_creds"] is not None:
+        genai.configure(credentials=st.session_state["oauth_creds"])
+    else:
+        st.session_state["oauth_creds"] = load_creds()
+        genai.configure(credentials=st.session_state["oauth_creds"])
 
 
     model = genai.GenerativeModel('tunedModels/connext-wide-chatbot-ddal5ox9d38h' ,generation_config=generation_config) if response_mime_type == "text/plain" else genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
@@ -219,7 +222,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
             except Exception as e:
                 print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
                 max_attempts = max_attempts - 1
-                st.toast(f"Failed to create a response for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
+                st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
                 continue
 
             #Test 2
@@ -384,3 +387,4 @@ def app():
         else:
             answer_placeholder.write("Failed to generate a fine-tuned answer.")
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
+
