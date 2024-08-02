@@ -252,17 +252,15 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
 
     return parsed_result
 
-def user_input(user_question, api_key, chat_history):
+def user_input(user_question, api_key):
+    
     with st.spinner("Processing..."):
         st.session_state.show_fine_tuned_expander = True  # Reset
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
-
-        # Create context from chat history
-        context = "\n\n--------------------------\n\n".join([f"User: {entry['question']}\nBot: {entry['answer']['Answer']}" for entry in chat_history])
-        context += "\n\n--------------------------\n\n"
-        context += "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
+        
+        context = "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
 
         parsed_result = try_get_answer(user_question, context)
         print(f"Parsed Result: {parsed_result}")
@@ -357,7 +355,7 @@ def app():
 
     if submit_button:
         if user_question and google_ai_api_key:
-            parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history)
+            parsed_result = user_input(user_question, google_ai_api_key)
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
 
@@ -402,3 +400,9 @@ def app():
             answer_placeholder.write("Failed to generate a fine-tuned answer.")
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
 
+# Firebase SDK initialization
+if not firebase_admin._apps:
+    cred = credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"])
+    firebase_admin.initialize_app(cred)
+
+app()
