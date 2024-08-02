@@ -266,10 +266,9 @@ def user_input(user_question, api_key):
         print(f"Parsed Result: {parsed_result}")
     
     return parsed_result
-    
+
 
 def app():
-
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
     #Get firestore client
     firestore_db=firestore.client()
@@ -294,6 +293,7 @@ def app():
 
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
+    clear_history_button = st.button("Clear History")
 
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
@@ -315,6 +315,12 @@ def app():
 
     if 'parsed_result' not in st.session_state:
         st.session_state.parsed_result = {}
+
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+
+    if clear_history_button:
+        st.session_state.chat_history = []
 
     with st.sidebar:
         st.title("PDF Documents:")
@@ -349,11 +355,17 @@ def app():
 
     if submit_button:
         if user_question and google_ai_api_key:
-            st.session_state.parsed_result = user_input(user_question, google_ai_api_key)
+            parsed_result = user_input(user_question, google_ai_api_key)
+            st.session_state.parsed_result = parsed_result
+            st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
 
     # Setup placeholders for answers
     answer_placeholder = st.empty()
 
+    st.markdown("### Chat History")
+    for chat in st.session_state.chat_history:
+        st.markdown(f"**Q:** {chat['question']}")
+        st.markdown(f"**A:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
         answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
