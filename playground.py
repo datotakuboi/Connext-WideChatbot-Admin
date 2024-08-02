@@ -22,6 +22,9 @@ import datetime
 import requests
 import json
 
+# Set the page config at the very top of the script
+st.set_page_config(page_title="Connext Chatbot", layout="centered")
+
 # Initialize session_state values
 if "oauth_creds" not in st.session_state:
     st.session_state["oauth_creds"] = None
@@ -289,7 +292,7 @@ def user_input(user_question, api_key):
 
 # Main app function
 def app():
-    st.set_page_config(page_title="Connext Chatbot", layout="centered")
+    # This part has been moved to the top of the script to avoid the StreamlitAPIException
 
     # Retrieve API key from secrets
     google_ai_api_key = st.secrets["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
