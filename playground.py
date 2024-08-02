@@ -366,7 +366,7 @@ def app():
 
     st.markdown("### Chat History")
     for chat in st.session_state.chat_history:
-        st.markdown(f"**User:** {chat['question']}")
+        st.markdown(f"**You:** {chat['question']}")
         st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
@@ -397,6 +397,9 @@ def app():
         if fine_tuned_result:
             print(fine_tuned_result.strip())
             answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
+
+            # Update chat history with fine-tuned answer
+            st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
             st.session_state.show_fine_tuned_expander = False
         else:
             answer_placeholder.write("Failed to generate a fine-tuned answer.")
