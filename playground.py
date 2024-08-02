@@ -370,7 +370,7 @@ def app():
 
     st.markdown("### Chat History")
     for chat in st.session_state.chat_history:
-        st.markdown(f"**User:** {chat['question']}")
+        st.markdown(f"**You:** {chat['question']}")
         st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
