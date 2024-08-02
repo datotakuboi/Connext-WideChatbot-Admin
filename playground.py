@@ -273,8 +273,12 @@ def user_input(user_question, api_key, chat_history):
 def app():
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
     #Get firestore client
-    firestore_db=firestore.client()
-    st.session_state.db=firestore_db
+    if not firebase_admin._apps:
+        firestore_db = firebase_admin.initialize_app(credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"]))
+    else:
+        firestore_db = firebase_admin.get_app()
+
+    st.session_state.db = firestore.client(firestore_db)
 
     # Center the logo image
     col1, col2, col3 = st.columns([3,4,3])
@@ -366,7 +370,7 @@ def app():
 
     st.markdown("### Chat History")
     for chat in st.session_state.chat_history:
-        st.markdown(f"**You:** {chat['question']}")
+        st.markdown(f"**User:** {chat['question']}")
         st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
