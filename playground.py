@@ -31,18 +31,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
 
 def load_creds():
-    """Converts client_secret.json to a credential object.
-
-    This function caches the generated tokens to minimize the use of the
-    consent screen.
-    """
+    """Load credentials from Streamlit secrets and handle them using a temporary file."""
     creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -55,22 +47,21 @@ def load_creds():
                 # Load client config from Streamlit secrets
                 client_config = {
                     "installed": {
-                        "client_id": st.secrets["installed"]["client_id"],
-                        "project_id": st.secrets["installed"]["project_id"],
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                        "client_secret": st.secrets["installed"]["client_secret"],
-                        "redirect_uris": ["http://localhost"]
+                        "client_id": st.secrets["web"]["client_id"],
+                        "project_id": st.secrets["web"]["project_id"],
+                        "auth_uri": st.secrets["web"]["auth_uri"],
+                        "token_uri": st.secrets["web"]["token_uri"],
+                        "auth_provider_x509_cert_url": st.secrets["web"]["auth_provider_x509_cert_url"],
+                        "client_secret": st.secrets["web"]["client_secret"],
+                        "redirect_uris": st.secrets["web"]["redirect_uris"]
                     }
                 }
-                # Initiate the flow using the client configuration from secrets
                 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
             creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
     return creds
+
 
 creds = load_creds()
 
