@@ -22,9 +22,6 @@ import datetime
 import requests
 import json
 
-# Set the page config at the very top of the script
-st.set_page_config(page_title="Connext Chatbot", layout="centered")
-
 # Initialize session_state values
 if "oauth_creds" not in st.session_state:
     st.session_state["oauth_creds"] = None
@@ -40,7 +37,7 @@ if "is_streamlit_deployed" not in st.session_state:
 
 # Initialize Firebase SDK
 if not firebase_admin._apps:
-    cred = credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"])
+    cred = credentials.Certificate(st.secrets["gcp_service_account"])
     firebase_admin.initialize_app(cred)
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
@@ -292,12 +289,10 @@ def user_input(user_question, api_key):
 
 # Main app function
 def app():
-    # Retrieve API key from secrets
-    if "api_keys" not in st.secrets or "GOOGLE_AI_STUDIO_API_KEY" not in st.secrets["api_keys"]:
-        st.error("Google API key is missing. Please provide it in the secrets configuration.")
-        return
+    st.set_page_config(page_title="Connext Chatbot", layout="centered")
 
-    google_ai_api_key = st.secrets["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
+    # Retrieve API key from secrets
+    google_ai_api_key = st.secrets["GOOGLE_AI_STUDIO_API_KEY"]
 
     # Check if the API key is provided
     if not google_ai_api_key:
@@ -362,7 +357,7 @@ def app():
                 # Generate signed URL for the document
                 parsed_url = urlparse(retriever['document'])
                 file_name = os.path.basename(unquote(parsed_url.path))
-                signed_url = generate_signed_url('connext-chatbot-admin.appspot.com', file_name, st.secrets["service_account"])
+                signed_url = generate_signed_url('connext-chatbot-admin.appspot.com', file_name, st.secrets["gcp_service_account"])
 
                 st.markdown(f"_**File Name**_: {file_name}")
                 st.markdown(f"[Download PDF]({signed_url})", unsafe_allow_html=True)
