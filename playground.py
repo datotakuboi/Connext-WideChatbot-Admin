@@ -49,7 +49,7 @@ def load_creds():
         else:
             flow = None
             if not st.session_state["is_streamlit_deployed"]:
-                flow = InstalledAppFlow.from_client_secrets_file(x
+                flow = InstalledAppFlow.from_client_secrets_file(
                     'connext_chatbot_auth.json', SCOPES)
             else:
                 # Load client config from Streamlit secrets
