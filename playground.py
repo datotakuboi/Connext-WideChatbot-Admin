@@ -292,9 +292,11 @@ def user_input(user_question, api_key):
 
 # Main app function
 def app():
-    # This part has been moved to the top of the script to avoid the StreamlitAPIException
-
     # Retrieve API key from secrets
+    if "api_keys" not in st.secrets or "GOOGLE_AI_STUDIO_API_KEY" not in st.secrets["api_keys"]:
+        st.error("Google API key is missing. Please provide it in the secrets configuration.")
+        return
+
     google_ai_api_key = st.secrets["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
 
     # Check if the API key is provided
