@@ -14,7 +14,6 @@ import tempfile
 from functools import partial
 import datetime
 import mimetypes
-import streamlit_scrollable_textbox
 
 
 ### Functions: Start ###
