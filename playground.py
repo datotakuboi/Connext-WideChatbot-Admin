@@ -297,67 +297,18 @@ def app():
     retrievers_ref = st.session_state.db.collection('Retrievers')
     docs = retrievers_ref.stream()
 
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    if "parsed_result" not in st.session_state:
+        st.session_state.parsed_result = {}
+
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
     clear_history_button = st.button("Clear History")
 
-    if "retrievers" not in st.session_state:
-        st.session_state["retrievers"] = {}
-    
-    if "selected_retrievers" not in st.session_state:
-        st.session_state["selected_retrievers"] = []
-
-    if "answer" not in st.session_state:
-        st.session_state["answer"] = ""
-
-    if "request_fine_tuned_answer" not in st.session_state:
-        st.session_state["request_fine_tuned_answer"] = False
-
-    if 'fine_tuned_answer_expander_state' not in st.session_state:
-        st.session_state.fine_tuned_answer_expander_state = False
-
-    if 'show_fine_tuned_expander' not in st.session_state:
-        st.session_state.show_fine_tuned_expander = True
-
-    if 'parsed_result' not in st.session_state:
-        st.session_state.parsed_result = {}
-
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-
     if clear_history_button:
         st.session_state.chat_history = []
-
-    with st.sidebar:
-        st.title("PDF Documents:")
-        for idx, doc in enumerate(docs, start=1):
-            retriever = doc.to_dict()
-            retriever['id'] = doc.id  # Add document ID to the retriever dictionary
-            retriever_name = retriever['retriever_name']
-            retriever_description = retriever['retriever_description']
-            with st.expander(retriever_name):
-                st.markdown(f"**Description:** {retriever_description}")
-                file_path, file_name = download_file_to_temp(retriever['document']) # Get the document file path and file name
-                st.markdown(f"_**File Name**_: {file_name}")
-                retriever["file_path"] = file_path 
-                st.session_state["retrievers"][retriever_name] = retriever #populate the retriever dictionary
-        st.title("PDF Document Selection:")
-        st.session_state["selected_retrievers"] = st.multiselect("Select Documents", list(st.session_state["retrievers"].keys()))  
-        
-        #Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
-        if st.button("Submit & Process", key="process_button"):
-            if google_ai_api_key:
-                with st.spinner("Processing..."):
-                    # Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
-                    selected_files = [st.session_state["retrievers"][name]["file_path"] for name in st.session_state["selected_retrievers"]]
-                    raw_text = get_pdf_text(selected_files)
-                    text_chunks = get_text_chunks(raw_text)
-                    get_vector_store(text_chunks, google_ai_api_key)
-                    st.success("Done")
-            else:
-                st.toast("Failed to process the documents", icon="💥")
-
-    # Assuming you have already defined user_question and google_ai_api_key above this snippet.
 
     if submit_button:
         if user_question and google_ai_api_key:
@@ -368,13 +319,15 @@ def app():
     # Setup placeholders for answers
     answer_placeholder = st.empty()
 
-    st.markdown("### Chat History")
-    for chat in st.session_state.chat_history:
-        st.markdown(f"**You:** {chat['question']}")
-        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+    # Display Chat History
+    chat_history_container = st.container()
+    with chat_history_container:
+        for chat in st.session_state.chat_history:
+            st.markdown(f"<div style='background-color: #f0f0f0; padding: 10px; border-radius: 5px;'><strong>You:</strong> {chat['question']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #d0d0d0; padding: 10px; border-radius: 5px; margin-bottom: 10px;'><strong>Bot:</strong> {chat['answer']['Answer']}</div>", unsafe_allow_html=True)
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
+        answer_placeholder.markdown(f"<div style='background-color: #d0d0d0; padding: 10px; border-radius: 5px;'><strong>Bot:</strong> {st.session_state.parsed_result['Answer']}</div>", unsafe_allow_html=True)
         
         # Check if the answer is not directly in the context
         if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
@@ -400,7 +353,7 @@ def app():
         fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
             print(fine_tuned_result.strip())
-            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
+            answer_placeholder.markdown(f"<div style='background-color: #d0d0d0; padding: 10px; border-radius: 5px;'><strong>Bot:</strong> {fine_tuned_result.strip()}</div>", unsafe_allow_html=True)
 
             # Update chat history with fine-tuned answer
             st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
