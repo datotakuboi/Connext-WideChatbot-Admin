@@ -15,5 +15,5 @@ pytz
 python-dateutil
 google-auth
 google-auth-oauthlib
-streamlit-scrollable-textbox
+
 

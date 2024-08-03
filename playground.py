@@ -26,7 +26,6 @@ from langchain.prompts import PromptTemplate
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-import streamlit_scrollable_textbox as stx
 
 ### Functions: Start ###
 
@@ -235,7 +234,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
                 continue
 
             #Test 3
-            is_expected_json =is_expected_json_content(parsed_result)  
+            is_expected_json = is_expected_json_content(parsed_result)  
             if is_expected_json == False:
                 print(f"Successfully validated and parse json for the question: {user_question} but is not on expected format... Trying again...")
                 st.toast(f"Successfully validated and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
@@ -308,8 +307,10 @@ def app():
     chat_history_placeholder = st.empty()
 
     def display_chat_history():
-        chat_history = "\n\n".join([f"**You:** {chat['question']}\n**Bot:** {chat['answer']['Answer']}" for chat in st.session_state.chat_history])
-        stx.scrollableTextbox(chat_history, height=300, border=True)
+        with chat_history_placeholder.container():
+            for chat in st.session_state.chat_history:
+                st.markdown(f"**You:** {chat['question']}")
+                st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     display_chat_history()
 
