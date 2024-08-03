@@ -252,7 +252,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
 
     return parsed_result
 
-def user_input(user_question, api_key, chat_history, use_fine_tuned_model):
+def user_input(user_question, api_key, chat_history):
     with st.spinner("Processing..."):
         st.session_state.show_fine_tuned_expander = True  # Reset
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
@@ -264,10 +264,11 @@ def user_input(user_question, api_key, chat_history, use_fine_tuned_model):
         context += "\n\n--------------------------\n\n"
         context += "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
 
-        parsed_result = try_get_answer(user_question, context, use_fine_tuned_model)
+        parsed_result = try_get_answer(user_question, context)
         print(f"Parsed Result: {parsed_result}")
     
     return parsed_result
+
 
 def app():
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
@@ -309,8 +310,7 @@ def app():
         with chat_history_placeholder.container():
             for chat in st.session_state.chat_history:
                 st.markdown(f"**You:** {chat['question']}")
-                bot_answer = chat.get('answer', {}).get('Answer', "No answer available")
-                st.markdown(f"**Bot:** {bot_answer}")
+                st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     display_chat_history()
 
@@ -345,17 +345,7 @@ def app():
 
     if submit_button:
         if user_question and google_ai_api_key:
-            parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history, False)
-            if not parsed_result or not parsed_result.get('Is_Answer_In_Context', False):
-                with st.expander("Get fine-tuned answer?"):
-                    st.session_state.request_fine_tuned_answer = st.radio(
-                        "Would you like me to generate the answer based on my fine-tuned knowledge?", 
-                        ("Yes", "No")
-                    ) == "Yes"
-
-                if st.session_state.request_fine_tuned_answer:
-                    parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history, True)
-
+            parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history)
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
             display_chat_history()  # Update chat history display
