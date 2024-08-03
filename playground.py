@@ -305,9 +305,15 @@ def app():
 
     # Display chat history above the input section
     st.markdown("### Chat History")
-    for chat in st.session_state.chat_history:
-        st.markdown(f"**You:** {chat['question']}")
-        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+    chat_history_placeholder = st.empty()
+
+    def display_chat_history():
+        with chat_history_placeholder.container():
+            for chat in st.session_state.chat_history:
+                st.markdown(f"**You:** {chat['question']}")
+                st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+
+    display_chat_history()
 
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
@@ -342,6 +348,7 @@ def app():
             parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history)
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
+            display_chat_history()  # Update chat history display
 
     # Setup placeholders for answers
     answer_placeholder = st.empty()
@@ -378,6 +385,7 @@ def app():
             # Update chat history with fine-tuned answer
             st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
             st.session_state.show_fine_tuned_expander = False
+            display_chat_history()  # Update chat history display
         else:
             answer_placeholder.write("Failed to generate a fine-tuned answer.")
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
