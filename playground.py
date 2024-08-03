@@ -268,7 +268,7 @@ def user_input(user_question, api_key, chat_history):
 
 
 def app():
-    google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
+    google_ai_api_key = st.secrets["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
     #Get firestore client
     if not firebase_admin._apps:
         firestore_db = firebase_admin.initialize_app(credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"]))
@@ -302,6 +302,7 @@ def app():
 
     # Display chat history above the input section
     chat_history_placeholder = st.empty()
+    answer_placeholder = st.empty()  # Placeholder for answers
 
     def display_chat_history():
         with chat_history_placeholder.container():
@@ -346,6 +347,40 @@ def app():
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
             display_chat_history()  # Update chat history display
+
+            # Display the answer and the fine-tuning option if applicable
+            if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
+                answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
+                
+                # Check if the answer is not directly in the context
+                if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
+                    if st.session_state.show_fine_tuned_expander:
+                        with st.expander("Get fine-tuned answer?", expanded=False):
+                            st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
+                            col1, col2, _ = st.columns([3,3,6])
+                            with col1:
+                                if st.button("Yes", key="yes_button"):
+                                    # Use session state to handle the rerun after button press
+                                    st.session_state["request_fine_tuned_answer"] = True
+                                    st.session_state.show_fine_tuned_expander = False
+                                    st.rerun()
+                            with col2:
+                                if st.button("No", key="no_button"):
+                                    st.session_state.show_fine_tuned_expander = False
+                                    st.rerun()
+
+    # Handle the generation of fine-tuned answer if the flag is set
+    if st.session_state["request_fine_tuned_answer"]:
+        fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+        if fine_tuned_result:
+            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
+
+            # Update chat history with fine-tuned answer
+            st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
+            st.session_state.show_fine_tuned_expander = False
+        else:
+            answer_placeholder.write("Failed to generate a fine-tuned answer.")
+        st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
 
     with st.sidebar:
         st.title("PDF Documents:")
