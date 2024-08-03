@@ -297,7 +297,10 @@ def app():
     retrievers_ref = st.session_state.db.collection('Retrievers')
     docs = retrievers_ref.stream()
 
-    # Initialize session states
+    user_question = st.text_input("Ask a Question", key="user_question")
+    submit_button = st.button("Submit", key="submit_button")
+    clear_history_button = st.button("Clear History")
+
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
     
@@ -322,25 +325,8 @@ def app():
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
 
-    chat_history_placeholder = st.empty()
-
-    # Clear history button
-    clear_history_button = st.button("Clear History")
     if clear_history_button:
         st.session_state.chat_history = []
-
-    # Display chat history or a placeholder
-    with chat_history_placeholder:
-        if st.session_state.chat_history:
-            st.markdown("### Chat History")
-            for chat in st.session_state.chat_history:
-                st.markdown(f"**You:** {chat['question']}")
-                st.markdown(f"**Bot:** {chat['answer']['Answer']}")
-        else:
-            st.write("Chat history will appear here...")
-
-    user_question = st.text_input("Ask a Question", key="user_question")
-    submit_button = st.button("Submit", key="submit_button")
 
     with st.sidebar:
         st.title("PDF Documents:")
@@ -381,6 +367,11 @@ def app():
 
     # Setup placeholders for answers
     answer_placeholder = st.empty()
+
+    st.markdown("### Chat History")
+    for chat in st.session_state.chat_history:
+        st.markdown(f"**You:** {chat['question']}")
+        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
         answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
