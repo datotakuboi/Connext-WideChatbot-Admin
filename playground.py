@@ -20,9 +20,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
 from langchain_community.vectorstores import FAISS
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -264,7 +261,7 @@ def clear_chat():
     st.session_state.conversation_context = ""
 
 def app():
-    google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
+    google_ai_api_key = st.secrets["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
     # Get firestore client
     if not firebase_admin._apps:
         firestore_db = firebase_admin.initialize_app(credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"]))
@@ -301,10 +298,6 @@ def app():
     docs = retrievers_ref.stream()
 
     chat_placeholder = st.empty()
-    with chat_placeholder.container():
-        for chat in st.session_state.chat_history:
-            st.write(f"**You:** {chat['question']}")
-            st.write(f"**Bot:** {chat['answer']['Answer']}")
 
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
@@ -368,29 +361,33 @@ def app():
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
 
-    if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        st.markdown(f"**Reply:** {st.session_state.parsed_result['Answer']}")
-        
-        # Check if the answer is not directly in the context
-        if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
-            if st.session_state.show_fine_tuned_expander:
-                with st.expander("Get fine-tuned answer?", expanded=False):
-                    st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
-                    col1, col2, _ = st.columns([1, 1, 1])
-                    with col1:
-                        if st.button("Yes", key="yes_button"):
-                            st.session_state["request_fine_tuned_answer"] = True
-                            st.session_state.show_fine_tuned_expander = False
-                            st.rerun()
-                    with col2:
-                        if st.button("No", key="no_button"):
-                            st.session_state.show_fine_tuned_expander = False
-                            st.rerun()
+    with chat_placeholder.container():
+        if st.session_state.chat_history:
+            for chat in st.session_state.chat_history:
+                st.markdown(f"**You:** {chat['question']}")
+                st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+        else:
+            st.markdown("**No chat history available.**")
+
+        if st.session_state.parsed_result and "Answer" in st.session_state.parsed_result:
+            if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
+                if st.session_state.show_fine_tuned_expander:
+                    with st.expander("Get fine-tuned answer?", expanded=True):
+                        st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
+                        col1, col2, _ = st.columns([1, 1, 1])
+                        with col1:
+                            if st.button("Yes", key="yes_button"):
+                                st.session_state["request_fine_tuned_answer"] = True
+                                st.session_state.show_fine_tuned_expander = False
+                                st.rerun()
+                        with col2:
+                            if st.button("No", key="no_button"):
+                                st.session_state.show_fine_tuned_expander = False
+                                st.rerun()
 
     if st.session_state["request_fine_tuned_answer"]:
         fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
-            st.markdown(f"**Fine-tuned Reply:** {fine_tuned_result.strip()}")
             st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
             st.session_state.show_fine_tuned_expander = False
         else:
