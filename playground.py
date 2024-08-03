@@ -356,28 +356,38 @@ def app():
 
     # Display chat history
     with chat_history_placeholder:
-        for chat in st.session_state.chat_history:
+        for i, chat in enumerate(st.session_state.chat_history):
             user_icon = '<span style="color: red;">⬤</span>'
             bot_icon = '<span style="color: yellow;">⬤</span>'
             st.markdown(f"{user_icon} **You:** {chat['question']}", unsafe_allow_html=True)
             st.markdown(f"{bot_icon} **Bot:** {chat['answer']['Answer']}", unsafe_allow_html=True)
 
-    if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        st.session_state.parsed_result = {}
+            # Check if the answer is not directly in the context and provide option for fine-tuned answer
+            if "Is_Answer_In_Context" in chat['answer'] and not chat['answer']["Is_Answer_In_Context"]:
+                with st.expander(f"Get fine-tuned answer for question {i+1}?", expanded=False):
+                    st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
+                    col1, col2 = st.columns([1, 1])
+                    with col1:
+                        if st.button("Yes", key=f"yes_button_{i}"):
+                            st.session_state["request_fine_tuned_answer"] = True
+                            st.session_state["selected_question_index"] = i
+                            st.rerun()
+                    with col2:
+                        if st.button("No", key=f"no_button_{i}"):
+                            st.session_state.show_fine_tuned_expander = False
+                            st.rerun()
 
     # Handle the generation of fine-tuned answer if the flag is set
     if st.session_state["request_fine_tuned_answer"]:
-        print("Generating fine-tuned answer...")
-        fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+        selected_question_index = st.session_state["selected_question_index"]
+        selected_question = st.session_state.chat_history[selected_question_index]['question']
+        fine_tuned_result = try_get_answer(selected_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
-            print(fine_tuned_result.strip())
-
-            # Update chat history with fine-tuned answer
-            st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
-            st.session_state.show_fine_tuned_expander = False
+            st.session_state.chat_history[selected_question_index]['answer'] = {"Answer": fine_tuned_result.strip()}
         else:
-            st.session_state.chat_history[-1]['answer'] = {"Answer": "Failed to generate a fine-tuned answer."}
+            st.session_state.chat_history[selected_question_index]['answer'] = {"Answer": "Failed to generate a fine-tuned answer."}
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
+        st.rerun()
 
 if __name__ == "__main__":
     app()
