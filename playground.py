@@ -368,16 +368,13 @@ def app():
     # Setup placeholders for answers
     answer_placeholder = st.empty()
 
-    # Styled Chat History
-    st.markdown("<div style='background-color: #f5f5f5; padding: 10px; border-radius: 5px;'>Chat History</div>", unsafe_allow_html=True)
-    chat_history_container = st.container()
-    with chat_history_container:
-        for chat in st.session_state.chat_history:
-            st.markdown(f"<div style='background-color: #e0e0e0; padding: 10px; border-radius: 5px; margin-bottom: 5px;'><strong>You:</strong> {chat['question']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='background-color: #d0d0d0; padding: 10px; border-radius: 5px; margin-bottom: 10px;'><strong>Bot:</strong> {chat['answer']['Answer']}</div>", unsafe_allow_html=True)
+    st.markdown("### Chat History")
+    for chat in st.session_state.chat_history:
+        st.markdown(f"**You:** {chat['question']}")
+        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        answer_placeholder.markdown(f"<div style='background-color: #d0d0d0; padding: 10px; border-radius: 5px;'><strong>Bot:</strong> {st.session_state.parsed_result['Answer']}</div>", unsafe_allow_html=True)
+        answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
         
         # Check if the answer is not directly in the context
         if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
@@ -403,7 +400,7 @@ def app():
         fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
             print(fine_tuned_result.strip())
-            answer_placeholder.markdown(f"<div style='background-color: #d0d0d0; padding: 10px; border-radius: 5px;'><strong>Bot:</strong> {fine_tuned_result.strip()}</div>", unsafe_allow_html=True)
+            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
 
             # Update chat history with fine-tuned answer
             st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
