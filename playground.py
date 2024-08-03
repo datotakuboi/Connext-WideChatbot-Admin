@@ -347,6 +347,21 @@ def app():
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
             display_chat_history()  # Update chat history display
 
+    if st.session_state.show_fine_tuned_expander and not st.session_state.request_fine_tuned_answer:
+        with st.expander("Request fine-tuned answer", expanded=st.session_state.fine_tuned_answer_expander_state):
+            if st.button("Request Fine-Tuned Answer"):
+                user_question = st.session_state.chat_history[-1]["question"]
+                context = "\n\n--------------------------\n\n".join([f"User: {entry['question']}\nBot: {entry['answer']['Answer']}" for entry in st.session_state.chat_history])
+                context += "\n\n--------------------------\n\n"
+                context += "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
+                fine_tuned_answer = try_get_answer(user_question, context, fine_tuned_knowledge=True)
+                st.session_state.chat_history[-1]["fine_tuned_answer"] = fine_tuned_answer
+                st.session_state.request_fine_tuned_answer = True
+                st.experimental_rerun()
+
+        if st.session_state.request_fine_tuned_answer:
+            st.markdown(f"**Fine-Tuned Bot:** {st.session_state.chat_history[-1]['fine_tuned_answer']}")
+
     with st.sidebar:
         st.title("PDF Documents:")
         for idx, doc in enumerate(docs, start=1):
