@@ -345,7 +345,7 @@ def app():
     # Setup placeholders for answers
     chat_history_placeholder = st.empty()
 
-    user_question = st.text_input("Ask a Question", key="user_question")
+    user_question = st.text_input("Ask Gemini-Pro...", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
 
     if submit_button:
@@ -357,10 +357,8 @@ def app():
     # Display chat history
     with chat_history_placeholder:
         for i, chat in enumerate(st.session_state.chat_history):
-            user_icon = '<span style="color: red;">⬤</span>'
-            bot_icon = '<span style="color: yellow;">⬤</span>'
-            st.markdown(f"{user_icon} **You:** {chat['question']}", unsafe_allow_html=True)
-            st.markdown(f"{bot_icon} **Bot:** {chat['answer']['Answer']}", unsafe_allow_html=True)
+            st.markdown(f"### {chat['question']}")
+            st.markdown(f"#### {chat['answer']['Answer']}")
 
             # Check if the answer is not directly in the context and provide option for fine-tuned answer
             if "Is_Answer_In_Context" in chat['answer'] and not chat['answer']["Is_Answer_In_Context"]:
