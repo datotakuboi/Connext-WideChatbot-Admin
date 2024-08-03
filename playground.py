@@ -88,7 +88,9 @@ def download_file_to_temp(url):
     # Create the full path with the preferred filename
     temp_file_path = os.path.join(temp_dir, file_name)
 
-    # Save the content to the file
+    # # Save the content to the file
+    # with open(temp_file_path, 'wb') as temp_file:
+    #     temp_file.write(response.content)
     blob.download_to_filename(temp_file_path)
 
     return temp_file_path, file_name
@@ -267,6 +269,7 @@ def user_input(user_question, api_key, chat_history):
     
     return parsed_result
 
+
 def app():
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
     #Get firestore client
@@ -277,12 +280,26 @@ def app():
 
     st.session_state.db = firestore.client(firestore_db)
 
-    st.image("Connext_Logo.png", width=250) 
+    # Center the logo image
+    col1, col2, col3 = st.columns([3,4,3])
+
+    with col1:
+        st.write(' ')
+
+    with col2:
+        st.image("Connext_Logo.png", width=250) 
+
+    with col3:
+        st.write(' ')
 
     st.markdown('## Welcome to :blue[Connext Chatbot] :robot_face:')
 
     retrievers_ref = st.session_state.db.collection('Retrievers')
     docs = retrievers_ref.stream()
+
+    user_question = st.text_input("Ask a Question", key="user_question")
+    submit_button = st.button("Submit", key="submit_button")
+    clear_history_button = st.button("Clear History")
 
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
@@ -307,8 +324,6 @@ def app():
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
-
-    clear_history_button = st.button("Clear History")
 
     if clear_history_button:
         st.session_state.chat_history = []
@@ -342,14 +357,7 @@ def app():
             else:
                 st.toast("Failed to process the documents", icon="💥")
 
-    # Setup placeholders for answers
-    answer_placeholder = st.empty()
-
-    st.markdown("### Chat History")
-    chat_history_placeholder = st.empty()
-
-    user_question = st.text_input("Ask a Question", key="user_question")
-    submit_button = st.button("Submit", key="submit_button")
+    # Assuming you have already defined user_question and google_ai_api_key above this snippet.
 
     if submit_button:
         if user_question and google_ai_api_key:
@@ -357,11 +365,13 @@ def app():
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
 
-    # Display chat history
-    with chat_history_placeholder:
-        for chat in st.session_state.chat_history:
-            st.markdown(f"**You:** {chat['question']}")
-            st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+    # Setup placeholders for answers
+    answer_placeholder = st.empty()
+
+    st.markdown("### Chat History")
+    for chat in st.session_state.chat_history:
+        st.markdown(f"**You:** {chat['question']}")
+        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
         answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
