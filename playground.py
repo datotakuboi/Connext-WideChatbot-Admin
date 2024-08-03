@@ -372,11 +372,11 @@ def app():
     chat_history_container = st.container()
     with chat_history_container:
         for chat in st.session_state.chat_history:
-            st.markdown(f"**You:** {chat['question']}")
-            st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+            st.markdown(f"<div style='background-color: #333; padding: 10px; border-radius: 5px;'><strong>You:</strong> {chat['question']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #444; padding: 10px; border-radius: 5px; margin-top: 5px;'><strong>Bot:</strong> {chat['answer']['Answer']}</div>", unsafe_allow_html=True)
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
+        answer_placeholder.markdown(f"<div style='background-color: #444; padding: 10px; border-radius: 5px;'><strong>Bot:</strong> {st.session_state.parsed_result['Answer']}</div>", unsafe_allow_html=True)
         
         # Check if the answer is not directly in the context
         if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
@@ -402,7 +402,7 @@ def app():
         fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
             print(fine_tuned_result.strip())
-            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
+            answer_placeholder.markdown(f"<div style='background-color: #444; padding: 10px; border-radius: 5px;'><strong>Bot:</strong> {fine_tuned_result.strip()}</div>", unsafe_allow_html=True)
 
             # Update chat history with fine-tuned answer
             st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
