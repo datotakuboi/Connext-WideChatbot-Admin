@@ -368,7 +368,7 @@ def app():
     # Setup placeholders for answers
     answer_placeholder = st.empty()
 
-    st.markdown("### Chat History")
+    # Display chat history below the welcome message
     for chat in st.session_state.chat_history:
         st.markdown(f"**You:** {chat['question']}")
         st.markdown(f"**Bot:** {chat['answer']['Answer']}")
