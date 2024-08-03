@@ -198,8 +198,8 @@ def generate_response(question, context, fine_tuned_knowledge = False):
     }}
     """
 
-    prompt = prompt_with_context if not fine_tuned_knowledge else prompt_using_fine_tune_knowledge
-    model = get_generative_model("application/json" if not fine_tuned_knowledge else "text/plain")
+    prompt = prompt_using_fine_tune_knowledge if fine_tuned_knowledge else prompt_with_context
+    model = get_generative_model("text/plain" if fine_tuned_knowledge else "application/json")
     
     return model.generate_content(prompt).text
 
@@ -241,17 +241,17 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
     else: #if using fine_tuned knowledge
         try:
             print("Getting fine tuned knowledge...")
-            response = generate_response(user_question, context , fine_tuned_knowledge)
-            parsed_result = {"Is_Answer_In_Context": True, "Answer": response}
+            parsed_result = generate_response(user_question, context , fine_tuned_knowledge)
         except Exception as e:
             print(f"Failed to create response for the question:\n\n {user_question}")
-            parsed_result = {"Is_Answer_In_Context": False, "Answer": ""} # Default empty string given when failed to generate response
+            parsed_result = "" #Defaul empty string given when failed to generate response
             st.toast(f"Failed to create a response for your query.")
 
     return parsed_result
 
 def user_input(user_question, api_key, chat_history):
     with st.spinner("Processing..."):
+        st.session_state.show_fine_tuned_expander = True  # Reset
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
@@ -269,7 +269,7 @@ def user_input(user_question, api_key, chat_history):
 
 def app():
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
-    # Get firestore client
+    #Get firestore client
     if not firebase_admin._apps:
         firestore_db = firebase_admin.initialize_app(credentials.Certificate(st.session_state["connext_chatbot_admin_credentials"]))
     else:
@@ -278,7 +278,7 @@ def app():
     st.session_state.db = firestore.client(firestore_db)
 
     # Center the logo image
-    col1, col2, col3 = st.columns([3, 4, 3])
+    col1, col2, col3 = st.columns([3,4,3])
 
     with col1:
         st.write(' ')
@@ -299,12 +299,6 @@ def app():
 
     if 'parsed_result' not in st.session_state:
         st.session_state.parsed_result = {}
-
-    if 'request_fine_tuned_answer' not in st.session_state:
-        st.session_state.request_fine_tuned_answer = False
-
-    if 'show_fine_tuned_expander' not in st.session_state:
-        st.session_state.show_fine_tuned_expander = False
 
     # Display chat history above the input section
     chat_history_placeholder = st.empty()
@@ -333,6 +327,15 @@ def app():
 
     if "answer" not in st.session_state:
         st.session_state["answer"] = ""
+
+    if "request_fine_tuned_answer" not in st.session_state:
+        st.session_state["request_fine_tuned_answer"] = False
+
+    if 'fine_tuned_answer_expander_state' not in st.session_state:
+        st.session_state.fine_tuned_answer_expander_state = False
+
+    if 'show_fine_tuned_expander' not in st.session_state:
+        st.session_state.show_fine_tuned_expander = False
 
     if submit_button:
         if user_question and google_ai_api_key:
