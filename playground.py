@@ -345,11 +345,6 @@ def app():
     # Setup placeholders for answers
     answer_placeholder = st.empty()
 
-    st.markdown("### Chat History")
-    for chat in st.session_state.chat_history:
-        st.markdown(f"**You:** {chat['question']}")
-        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
-
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
         answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
         
