@@ -252,7 +252,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
 
     return parsed_result
 
-def user_input(user_question, api_key, chat_history, use_fine_tuned_model):
+def user_input(user_question, api_key, chat_history):
     with st.spinner("Processing..."):
         st.session_state.show_fine_tuned_expander = True  # Reset
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
@@ -264,7 +264,7 @@ def user_input(user_question, api_key, chat_history, use_fine_tuned_model):
         context += "\n\n--------------------------\n\n"
         context += "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
 
-        parsed_result = try_get_answer(user_question, context, use_fine_tuned_model)
+        parsed_result = try_get_answer(user_question, context)
         print(f"Parsed Result: {parsed_result}")
     
     return parsed_result
@@ -315,7 +315,6 @@ def app():
     display_chat_history()
 
     user_question = st.text_input("Ask a Question", key="user_question")
-    use_fine_tuned_model = st.checkbox("Use Fine-Tuned Model", key="use_fine_tuned_model")
     submit_button = st.button("Submit", key="submit_button")
     clear_history_button = st.button("Clear Chat History")
 
@@ -346,7 +345,7 @@ def app():
 
     if submit_button:
         if user_question and google_ai_api_key:
-            parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history, use_fine_tuned_model)
+            parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history)
             st.session_state.parsed_result = parsed_result
             st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
             display_chat_history()  # Update chat history display
