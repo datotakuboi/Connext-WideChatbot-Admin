@@ -309,7 +309,8 @@ def app():
         with chat_history_placeholder.container():
             for chat in st.session_state.chat_history:
                 st.markdown(f"**You:** {chat['question']}")
-                st.markdown(f"**Bot:** {chat['answer']['Answer']}")
+                bot_answer = chat.get('answer', {}).get('Answer', "No answer available")
+                st.markdown(f"**Bot:** {bot_answer}")
 
     display_chat_history()
 
