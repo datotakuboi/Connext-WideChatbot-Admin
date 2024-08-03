@@ -31,7 +31,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
 
-@st.dialog("Google Consent Authentication Link")
+@st.experimental_singleton
 def google_oauth_link(flow):
     auth_url, _ = flow.authorization_url(redirect_uris=st.secrets["web"]["redirect_uris"], prompt='consent')
     st.write("Please go to this URL and authorize access:")
@@ -88,9 +88,7 @@ def download_file_to_temp(url):
     # Create the full path with the preferred filename
     temp_file_path = os.path.join(temp_dir, file_name)
 
-    # # Save the content to the file
-    # with open(temp_file_path, 'wb') as temp_file:
-    #     temp_file.write(response.content)
+    # Save the content to the file
     blob.download_to_filename(temp_file_path)
 
     return temp_file_path, file_name
@@ -100,7 +98,7 @@ def extract_and_parse_json(text):
     start_index = text.find('{')
     end_index = text.rfind('}')
     
-    if start_index == -1 or end_index == -1 or end_index < start_index:
+    if (start_index == -1 or end_index == -1 or end_index < start_index):
         return None, False  # Proper JSON structure not found
 
     # Extract the substring that contains the JSON
@@ -218,7 +216,6 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
             #Test 1
             try:
                 response = generate_response(user_question, context , fine_tuned_knowledge)
-                # print("Chatbot Original Reponse: ", response)
             except Exception as e:
                 print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
                 max_attempts = max_attempts - 1
