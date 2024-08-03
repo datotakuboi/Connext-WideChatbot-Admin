@@ -343,9 +343,6 @@ def app():
                 st.toast("Failed to process the documents", icon="💥")
 
     # Setup placeholders for answers
-    answer_placeholder = st.empty()
-
-    st.markdown("### Chat History")
     chat_history_placeholder = st.empty()
 
     user_question = st.text_input("Ask a Question", key="user_question")
@@ -366,25 +363,7 @@ def app():
             st.markdown(f"{bot_icon} **Bot:** {chat['answer']['Answer']}", unsafe_allow_html=True)
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
-        
-        # Check if the answer is not directly in the context
-        if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
-            if st.session_state.show_fine_tuned_expander:
-                with st.expander("Get fine-tuned answer?", expanded=False):
-                    st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
-                    col1, col2, _ = st.columns([3,3,6])
-                    with col1:
-                        if st.button("Yes", key="yes_button"):
-                            # Use session state to handle the rerun after button press
-                            print("Requesting fine_tuned_answer...")
-                            st.session_state["request_fine_tuned_answer"] = True
-                            st.session_state.show_fine_tuned_expander = False
-                            st.rerun()
-                    with col2:
-                        if st.button("No", key="no_button"):
-                            st.session_state.show_fine_tuned_expander = False
-                            st.rerun()
+        st.session_state.parsed_result = {}
 
     # Handle the generation of fine-tuned answer if the flag is set
     if st.session_state["request_fine_tuned_answer"]:
@@ -392,13 +371,12 @@ def app():
         fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
             print(fine_tuned_result.strip())
-            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
 
             # Update chat history with fine-tuned answer
             st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
             st.session_state.show_fine_tuned_expander = False
         else:
-            answer_placeholder.write("Failed to generate a fine-tuned answer.")
+            st.session_state.chat_history[-1]['answer'] = {"Answer": "Failed to generate a fine-tuned answer."}
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
 
 if __name__ == "__main__":
