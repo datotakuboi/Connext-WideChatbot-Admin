@@ -341,9 +341,14 @@ def app():
         if user_question and google_ai_api_key:
             parsed_result = user_input(user_question, google_ai_api_key, st.session_state.chat_history)
             st.session_state.parsed_result = parsed_result
-            st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
-            st.session_state.show_fine_tuned_expander = True
-            display_chat_history()  # Update chat history display
+            
+            # Ensure the parsed result contains the "Answer" key
+            if "Answer" in parsed_result:
+                st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
+                st.session_state.show_fine_tuned_expander = True
+                display_chat_history()  # Update chat history display
+            else:
+                st.toast("Failed to get a valid response from the model.")
 
     # Setup placeholders for answers
     answer_placeholder = st.empty()
