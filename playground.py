@@ -88,9 +88,7 @@ def download_file_to_temp(url):
     # Create the full path with the preferred filename
     temp_file_path = os.path.join(temp_dir, file_name)
 
-    # # Save the content to the file
-    # with open(temp_file_path, 'wb') as temp_file:
-    #     temp_file.write(response.content)
+    # Save the content to the file
     blob.download_to_filename(temp_file_path)
 
     return temp_file_path, file_name
@@ -218,7 +216,6 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
             #Test 1
             try:
                 response = generate_response(user_question, context , fine_tuned_knowledge)
-                # print("Chatbot Original Reponse: ", response)
             except Exception as e:
                 print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
                 max_attempts = max_attempts - 1
@@ -297,10 +294,6 @@ def app():
     retrievers_ref = st.session_state.db.collection('Retrievers')
     docs = retrievers_ref.stream()
 
-    user_question = st.text_input("Ask a Question", key="user_question")
-    submit_button = st.button("Submit", key="submit_button")
-    clear_history_button = st.button("Clear History")
-
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
     
@@ -325,39 +318,18 @@ def app():
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
 
+    user_question = st.text_input("Ask a Question", key="user_question")
+    submit_button = st.button("Submit", key="submit_button")
+    clear_history_button = st.button("Clear History")
+
     if clear_history_button:
         st.session_state.chat_history = []
 
-    with st.sidebar:
-        st.title("PDF Documents:")
-        for idx, doc in enumerate(docs, start=1):
-            retriever = doc.to_dict()
-            retriever['id'] = doc.id  # Add document ID to the retriever dictionary
-            retriever_name = retriever['retriever_name']
-            retriever_description = retriever['retriever_description']
-            with st.expander(retriever_name):
-                st.markdown(f"**Description:** {retriever_description}")
-                file_path, file_name = download_file_to_temp(retriever['document']) # Get the document file path and file name
-                st.markdown(f"_**File Name**_: {file_name}")
-                retriever["file_path"] = file_path 
-                st.session_state["retrievers"][retriever_name] = retriever #populate the retriever dictionary
-        st.title("PDF Document Selection:")
-        st.session_state["selected_retrievers"] = st.multiselect("Select Documents", list(st.session_state["retrievers"].keys()))  
-        
-        #Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
-        if st.button("Submit & Process", key="process_button"):
-            if google_ai_api_key:
-                with st.spinner("Processing..."):
-                    # Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
-                    selected_files = [st.session_state["retrievers"][name]["file_path"] for name in st.session_state["selected_retrievers"]]
-                    raw_text = get_pdf_text(selected_files)
-                    text_chunks = get_text_chunks(raw_text)
-                    get_vector_store(text_chunks, google_ai_api_key)
-                    st.success("Done")
-            else:
-                st.toast("Failed to process the documents", icon="💥")
-
-    # Assuming you have already defined user_question and google_ai_api_key above this snippet.
+    # Display the chat history above the input field
+    st.markdown("### Chat History")
+    for chat in st.session_state.chat_history:
+        st.markdown(f"**You:** {chat['question']}")
+        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if submit_button:
         if user_question and google_ai_api_key:
@@ -367,11 +339,6 @@ def app():
 
     # Setup placeholders for answers
     answer_placeholder = st.empty()
-
-    st.markdown("### Chat History")
-    for chat in st.session_state.chat_history:
-        st.markdown(f"**You:** {chat['question']}")
-        st.markdown(f"**Bot:** {chat['answer']['Answer']}")
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
         answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
@@ -408,6 +375,35 @@ def app():
         else:
             answer_placeholder.write("Failed to generate a fine-tuned answer.")
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
+
+    with st.sidebar:
+        st.title("PDF Documents:")
+        for idx, doc in enumerate(docs, start=1):
+            retriever = doc.to_dict()
+            retriever['id'] = doc.id  # Add document ID to the retriever dictionary
+            retriever_name = retriever['retriever_name']
+            retriever_description = retriever['retriever_description']
+            with st.expander(retriever_name):
+                st.markdown(f"**Description:** {retriever_description}")
+                file_path, file_name = download_file_to_temp(retriever['document']) # Get the document file path and file name
+                st.markdown(f"_**File Name**_: {file_name}")
+                retriever["file_path"] = file_path 
+                st.session_state["retrievers"][retriever_name] = retriever #populate the retriever dictionary
+        st.title("PDF Document Selection:")
+        st.session_state["selected_retrievers"] = st.multiselect("Select Documents", list(st.session_state["retrievers"].keys()))  
+        
+        #Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
+        if st.button("Submit & Process", key="process_button"):
+            if google_ai_api_key:
+                with st.spinner("Processing..."):
+                    # Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
+                    selected_files = [st.session_state["retrievers"][name]["file_path"] for name in st.session_state["selected_retrievers"]]
+                    raw_text = get_pdf_text(selected_files)
+                    text_chunks = get_text_chunks(raw_text)
+                    get_vector_store(text_chunks, google_ai_api_key)
+                    st.success("Done")
+            else:
+                st.toast("Failed to process the documents", icon="💥")
 
 if __name__ == "__main__":
     app()
