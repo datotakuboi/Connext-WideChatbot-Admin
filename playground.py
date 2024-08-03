@@ -304,7 +304,6 @@ def app():
         st.session_state.parsed_result = {}
 
     # Display chat history above the input section
-    st.markdown("### Chat History")
     chat_history_placeholder = st.empty()
 
     def display_chat_history():
