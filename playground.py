@@ -421,7 +421,8 @@ def app():
 
     if st.session_state["request_fine_tuned_answer"]:
         if st.session_state.chat_history:
-            fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
+            with st.spinner("Generating fine-tuned answer..."):
+                fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
             if fine_tuned_result:
                 st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
                 display_chat_history()
