@@ -420,12 +420,13 @@ def app():
                     st.rerun()
 
     if st.session_state["request_fine_tuned_answer"]:
-        fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
-        if fine_tuned_result:
-            st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
-            display_chat_history()
-        else:
-            st.toast("Failed to generate a fine-tuned answer.")
+        if st.session_state.chat_history:
+            fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
+            if fine_tuned_result:
+                st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
+                display_chat_history()
+            else:
+                st.toast("Failed to generate a fine-tuned answer.")
         st.session_state["request_fine_tuned_answer"] = False
 
     with st.sidebar:
@@ -459,5 +460,3 @@ def app():
 
 if __name__ == "__main__":
     app()
-
-
