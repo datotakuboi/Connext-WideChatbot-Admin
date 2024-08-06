@@ -324,8 +324,11 @@ def user_input(user_question, api_key):
         print(f"Parsed Result: {parsed_result}")
     
     return parsed_result
-    
 
+def clear_chat():
+    st.session_state.chat_history = []
+    st.session_state.conversation_context = ""
+    
 def app():
 
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
@@ -350,8 +353,15 @@ def app():
     retrievers_ref = st.session_state.db.collection('Retrievers')
     docs = retrievers_ref.stream()
 
+    chat_placeholder = st.empty()
+    with chat_placeholder.container():
+        for chat in st.session_state.chat_history:
+            st.write(f"🧑 **You:** {chat['user_question']}")
+            st.write(f"🤖 **Bot:** {chat['response']}")
+
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
+    clear_button = st.button("Clear Chat History", on_click=clear_chat)
 
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
