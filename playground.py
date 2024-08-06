@@ -158,7 +158,7 @@ def extract_and_parse_json(text):
     start_index = text.find('{')
     end_index = text.rfind('}')
     
-    if (start_index == -1) or (end_index == -1) or (end_index < start_index):
+    if start_index == -1 or end_index == -1 or end_index < start_index:
         return None, False  # Proper JSON structure not found
 
     # Extract the substring that contains the JSON
@@ -181,7 +181,7 @@ def is_expected_json_content(json_data):
     required_keys = ["Is_Answer_In_Context", "Answer"]
 
     if not all(key in data for key in required_keys):
-        return False
+            return False
     
     return True #All checks passed for the specified type
 
@@ -374,9 +374,6 @@ def app():
     if 'parsed_result' not in st.session_state:
         st.session_state.parsed_result = {}
 
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-
     with st.sidebar:
         st.title("PDF Documents:")
         for idx, doc in enumerate(docs, start=1):
@@ -406,25 +403,18 @@ def app():
             else:
                 st.toast("Failed to process the documents", icon="💥")
 
-    # Display chat history
-    if st.session_state.chat_history:
-        for chat in st.session_state.chat_history:
-            st.write(f"**User:** {chat['user']}")
-            st.write(f"**Bot:** {chat['bot']}")
-            if 'fine_tuned' in chat:
-                st.write(f"**Fine-tuned Bot:** {chat['fine_tuned']}")
+    # Assuming you have already defined user_question and google_ai_api_key above this snippet.
 
     if submit_button:
         if user_question and google_ai_api_key:
             st.session_state.parsed_result = user_input(user_question, google_ai_api_key)
-            st.session_state.chat_history.append({
-                "user": user_question,
-                "bot": st.session_state.parsed_result.get('Answer', 'No answer generated')
-            })
+
+    # Setup placeholders for answers
+    answer_placeholder = st.empty()
+
 
     if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        st.write(f"**User:** {user_question}")
-        st.write(f"**Bot:** {st.session_state.parsed_result['Answer']}")
+        answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
         
         # Check if the answer is not directly in the context
         if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
@@ -450,11 +440,9 @@ def app():
         fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
         if fine_tuned_result:
             print(fine_tuned_result.strip())
-            st.write(f"**Fine-tuned Bot:** {fine_tuned_result.strip()}")
-            st.session_state.chat_history[-1]['fine_tuned'] = fine_tuned_result.strip()
+            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
             st.session_state.show_fine_tuned_expander = False
         else:
-            st.write("Failed to generate a fine-tuned answer.")
+            answer_placeholder.write("Failed to generate a fine-tuned answer.")
         st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
 
-app()
