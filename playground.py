@@ -388,8 +388,8 @@ def app():
     chat_placeholder = st.empty()
     with chat_placeholder.container():
         for chat in st.session_state.chat_history:
-            st.write(f"🧑 **You:** {chat['user_question']}")
-            st.write(f"🤖 **Bot:** {chat['response']}")
+            st.write(f"🧑 **You:** {chat.get('user_question', 'N/A')}")
+            st.write(f"🤖 **Bot:** {chat.get('response', 'N/A')}")
 
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
@@ -452,8 +452,8 @@ def app():
             st.session_state.parsed_result = user_input(user_question, google_ai_api_key)
             with chat_placeholder.container():
                 for idx, chat in enumerate(st.session_state.chat_history):
-                    st.write(f"🧑 **You:** {chat['user_question']}")
-                    st.write(f"🤖 **Bot:** {chat['response']}")
+                    st.write(f"🧑 **You:** {chat.get('user_question', 'N/A')}")
+                    st.write(f"🤖 **Bot:** {chat.get('response', 'N/A')}")
                     if idx == len(st.session_state.chat_history) - 1:
                         if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
                             if st.session_state.show_fine_tuned_expander:
