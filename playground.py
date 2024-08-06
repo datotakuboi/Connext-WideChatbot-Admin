@@ -39,94 +39,36 @@ def google_oauth_link(flow):
     code = st.text_input("Enter the authorization code:")
     return code
 
-def fetch_token_data():
-    """Fetch the token data from Firestore."""
-    try:
-        token_ref = st.session_state.db.collection('Token').limit(1)
-        token_docs = token_ref.get()
-        
-        if not token_docs:
-            st.error("No token document found in Firestore.")
-            return None, None
-        
-        token_doc = None
-        doc_id = None
-        for doc in token_docs:
-            token_doc = doc.to_dict()
-            doc_id = doc.id
-            break
-
-        if not token_doc:
-            st.error("No token document found in Firestore.")
-            return None, None
-
-        return token_doc, doc_id
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {str(e)}")
-        return None, None
-
 def load_creds():
-    token_doc, doc_id = fetch_token_data()
+    """Load credentials from Streamlit secrets and handle them using a temporary file."""
+    # Parse the token data from Streamlit's secrets
+    token_info = {
+        'token': st.secrets["token"]["value"],
+        'refresh_token': st.secrets["token"]["refresh_token"],
+        'token_uri': st.secrets["token"]["token_uri"],
+        'client_id': st.secrets["token"]["client_id"],
+        'client_secret': st.secrets["token"]["client_secret"],
+        'scopes': st.secrets["token"]["scopes"],
+        'expiry': st.secrets["token"]["expiry"]  # Assuming expiry is directly usable
+    }
 
-    if token_doc:
-        account = token_doc.get("account")
-        client_id = token_doc.get("client_id")
-        client_secret = token_doc.get("client_secret")
-        expiry = token_doc.get("expiry")
-        refresh_token = token_doc.get("refresh_token")
-        scopes = token_doc.get("scopes")
-        token = token_doc.get("token")
-        token_uri = token_doc.get("token_uri")
-        universe_domain = token_doc.get("universe_domain")
+    # Create a temporary file to store the token data
+    temp_dir = tempfile.mkdtemp()
+    token_file_path = os.path.join(temp_dir, 'token.json')
+    with open(token_file_path, 'w') as token_file:
+        json.dump(token_info, token_file)
 
-        st.session_state['account'] = account
-        st.session_state['client_id'] = client_id
-        st.session_state['client_secret'] = client_secret
-        st.session_state['expiry'] = expiry
-        st.session_state['refresh_token'] = refresh_token
-        st.session_state['scopes'] = scopes
-        st.session_state['token'] = token
-        st.session_state['token_uri'] = token_uri
-        st.session_state['universe_domain'] = universe_domain
+    # Load the credentials from the temporary file
+    creds = Credentials.from_authorized_user_file(token_file_path, SCOPES)
 
-        temp_dir = tempfile.mkdtemp()
-        token_file_path = os.path.join(temp_dir, 'token.json')
+    # Refresh the token if necessary
+    if creds and creds.expired and creds.refresh_token:
+        st.toast("Currently refreshing token...")
+        creds.refresh(Request())
+
+        # Optionally update the temporary file with the refreshed token data
         with open(token_file_path, 'w') as token_file:
-            json.dump(token_doc, token_file)
-
-        creds = Credentials.from_authorized_user_file(token_file_path, scopes)
-
-        if creds.expired:
-            token_doc, _ = fetch_token_data()
-            if token_doc:
-                new_refresh_token = token_doc.get("refresh_token")
-                if creds.refresh_token and creds.refresh_token == new_refresh_token:
-                    st.toast("Refreshing token...")
-                    creds.refresh(Request())
-                    new_token_data = {
-                        "account": account,
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "expiry": creds.expiry.isoformat() if creds.expiry else expiry,
-                        "refresh_token": creds.refresh_token,
-                        "scopes": scopes,
-                        "token": creds.token,
-                        "token_uri": token_uri,
-                        "universe_domain": universe_domain
-                    }
-                    
-                    st.session_state.db.collection('Token').document(doc_id).set(new_token_data)
-                    st.session_state.update(new_token_data)
-                    with open(token_file_path, 'w') as token_file:
-                        json.dump(new_token_data, token_file)
-                else:
-                    st.error("Refresh token mismatch or missing. Please log in again.")
-                    return None
-            else:
-                st.error("Failed to re-fetch token data from Firestore.")
-                return None
-    else:
-        return None
+            token_file.write(creds.to_json())
 
     return creds
 
@@ -350,12 +292,33 @@ def app():
     retrievers_ref = st.session_state.db.collection('Retrievers')
     docs = retrievers_ref.stream()
 
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+
+    if 'parsed_result' not in st.session_state:
+        st.session_state.parsed_result = {}
+
+    chat_history_placeholder = st.empty()
+
+    def display_chat_history():
+        with chat_history_placeholder.container():
+            for chat in st.session_state.chat_history:
+                st.markdown(f"🧑 **You:** {chat['question']}")
+                st.markdown(f"🤖 **Bot:** {chat['answer']['Answer']}")
+
+    display_chat_history()
+
     user_question = st.text_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
+    clear_history_button = st.button("Clear Chat History")
+
+    if clear_history_button:
+        st.session_state.chat_history = []
+        display_chat_history()
 
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
-    
+
     if "selected_retrievers" not in st.session_state:
         st.session_state["selected_retrievers"] = []
 
@@ -369,10 +332,44 @@ def app():
         st.session_state.fine_tuned_answer_expander_state = False
 
     if 'show_fine_tuned_expander' not in st.session_state:
-        st.session_state.show_fine_tuned_expander = True
+        st.session_state.show_fine_tuned_expander = False
 
-    if 'parsed_result' not in st.session_state:
-        st.session_state.parsed_result = {}
+    if submit_button:
+        if user_question and google_ai_api_key:
+            parsed_result = user_input(user_question, google_ai_api_key)
+            st.session_state.parsed_result = parsed_result
+            if "Answer" in parsed_result:
+                st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
+                display_chat_history()
+                if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+                    st.session_state.show_fine_tuned_expander = True
+            else:
+                st.toast("Failed to get a valid response from the model.")
+
+    display_chat_history()
+
+    if st.session_state.show_fine_tuned_expander:
+        with st.expander("Get fine-tuned answer?", expanded=True):
+            st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
+            col1, col2, _ = st.columns([1, 1, 1])
+            with col1:
+                if st.button("Yes", key=f"yes_button"):
+                    st.session_state.request_fine_tuned_answer = True
+                    st.session_state.show_fine_tuned_expander = False
+                    st.rerun()
+            with col2:
+                if st.button("No", key=f"no_button"):
+                    st.session_state.show_fine_tuned_expander = False
+                    st.rerun()
+
+    if st.session_state["request_fine_tuned_answer"]:
+        fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
+        if fine_tuned_result:
+            st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
+            display_chat_history()
+        else:
+            st.toast("Failed to generate a fine-tuned answer.")
+        st.session_state["request_fine_tuned_answer"] = False
 
     with st.sidebar:
         st.title("PDF Documents:")
@@ -403,45 +400,7 @@ def app():
             else:
                 st.toast("Failed to process the documents", icon="💥")
 
-    # Assuming you have already defined user_question and google_ai_api_key above this snippet.
-
-    if submit_button:
-        if user_question and google_ai_api_key:
-            st.session_state.parsed_result = user_input(user_question, google_ai_api_key)
-
-    # Setup placeholders for answers
-    answer_placeholder = st.empty()
+if __name__ == "__main__":
+    app()
 
 
-    if st.session_state.parsed_result is not None and "Answer" in st.session_state.parsed_result:
-        answer_placeholder.write(f"Reply:\n\n {st.session_state.parsed_result['Answer']}")
-        
-        # Check if the answer is not directly in the context
-        if "Is_Answer_In_Context" in st.session_state.parsed_result and not st.session_state.parsed_result["Is_Answer_In_Context"]:
-            if st.session_state.show_fine_tuned_expander:
-                with st.expander("Get fine-tuned answer?", expanded=False):
-                    st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
-                    col1, col2, _ = st.columns([3,3,6])
-                    with col1:
-                        if st.button("Yes", key="yes_button"):
-                            # Use session state to handle the rerun after button press
-                            print("Requesting fine_tuned_answer...")
-                            st.session_state["request_fine_tuned_answer"] = True
-                            st.session_state.show_fine_tuned_expander = False
-                            st.rerun()
-                    with col2:
-                        if st.button("No", key="no_button"):
-                            st.session_state.show_fine_tuned_expander = False
-                            st.rerun()
-
-    # Handle the generation of fine-tuned answer if the flag is set
-    if st.session_state["request_fine_tuned_answer"]:
-        print("Generating fine-tuned answer...")
-        fine_tuned_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
-        if fine_tuned_result:
-            print(fine_tuned_result.strip())
-            answer_placeholder.write(f"Fine-tuned Reply:\n\n {fine_tuned_result.strip()}")
-            st.session_state.show_fine_tuned_expander = False
-        else:
-            answer_placeholder.write("Failed to generate a fine-tuned answer.")
-        st.session_state["request_fine_tuned_answer"] = False  # Reset the flag after handling
