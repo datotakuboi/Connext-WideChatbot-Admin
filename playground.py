@@ -129,6 +129,7 @@ def load_creds():
         return None
 
     return creds
+
 def download_file_to_temp(url):
     # Create a temporary directory
     storage_client = storage.Client.from_service_account_info(st.session_state["connext_chatbot_admin_credentials"])
@@ -145,9 +146,6 @@ def download_file_to_temp(url):
     # Create the full path with the preferred filename
     temp_file_path = os.path.join(temp_dir, file_name)
 
-    # # Save the content to the file
-    # with open(temp_file_path, 'wb') as temp_file:
-    #     temp_file.write(response.content)
     blob.download_to_filename(temp_file_path)
 
     return temp_file_path, file_name
@@ -220,7 +218,6 @@ def get_generative_model(response_mime_type = "text/plain"):
     print(f"Model selected: {model}")
     return model
 
-
 def generate_response(question, context, fine_tuned_knowledge = False):
 
     prompt_using_fine_tune_knowledge = f"""
@@ -272,17 +269,14 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
         while not response_json_valid and max_attempts > 0:
             response = ""
 
-            #Test 1
             try:
                 response = generate_response(user_question, context , fine_tuned_knowledge)
-                # print("Chatbot Original Reponse: ", response)
             except Exception as e:
                 print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
                 max_attempts = max_attempts - 1
                 st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
                 continue
 
-            #Test 2
             parsed_result, response_json_valid = extract_and_parse_json(response)
             if response_json_valid == False:
                 print(f"Failed to validate and parse json for the questions:\n {user_question}")
@@ -290,21 +284,20 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
                 st.toast(f"Failed to validate and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
                 continue
 
-            #Test 3
             is_expected_json = is_expected_json_content(parsed_result)  
             if is_expected_json == False:
                 print(f"Successfully validated and parse json for the question: {user_question} but is not on expected format... Trying again...")
                 st.toast(f"Successfully validated and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
                 continue
             
-            break #If all tests passed above
-    else: #if using fine_tuned knowledge
+            break
+    else:
         try:
             print("Getting fine tuned knowledge...")
             parsed_result = generate_response(user_question, context , fine_tuned_knowledge)
         except Exception as e:
             print(f"Failed to create response for the question:\n\n {user_question}")
-            parsed_result = "" #Defaul empty string given when failed to generate response
+            parsed_result = "" 
             st.toast(f"Failed to create a response for your query.")
 
     return parsed_result
@@ -312,7 +305,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
 def user_input(user_question, api_key):
     
     with st.spinner("Processing..."):
-        st.session_state.show_fine_tuned_expander = True  # Reset
+        st.session_state.show_fine_tuned_expander = True  
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
@@ -320,7 +313,19 @@ def user_input(user_question, api_key):
         context = "\n\n--------------------------\n\n".join([doc.page_content for doc in docs])
 
         parsed_result = try_get_answer(user_question, context)
-        print(f"Parsed Result: {parsed_result}")
+
+        if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+            st.toast("Answer not found in the selected document. Attempting to scan other documents...")
+            remaining_docs = [d for d in st.session_state["retrievers"].values() if d["file_path"] not in context]
+            if remaining_docs:
+                remaining_context = "\n\n--------------------------\n\n".join([extract_text(d["file_path"]) for d in remaining_docs])
+                parsed_result = try_get_answer(user_question, remaining_context)
+                if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+                    st.toast("Attempting to generate an answer based on fine-tuned knowledge...")
+                    parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+            else:
+                st.toast("No other documents to scan. Attempting to generate an answer based on fine-tuned knowledge...")
+                parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
     
     return parsed_result
     
@@ -359,9 +364,49 @@ def app():
 
     def display_chat_history():
         with chat_history_placeholder.container():
+            st.markdown("""
+                <style>
+                .user-message {
+                    background-color: #DCF8C6;
+                    color: #000000;
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 5px;
+                    width: fit-content;
+                    max-width: 70%;
+                    word-wrap: break-word;
+                    font-size: 16px;
+                }
+                .bot-message {
+                    background-color: #F1F0F0;
+                    color: #000000;
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 5px;
+                    width: fit-content;
+                    max-width: 70%;
+                    word-wrap: break-word;
+                    font-size: 16px;
+                }
+                .user-message-container {
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                .bot-message-container {
+                    display: flex;
+                    justify-content: flex-start.
+                }
+                </style>
+            """, unsafe_allow_html=True)
             for chat in st.session_state.chat_history:
-                st.markdown(f"🧑 **You:** {chat['question']}")
-                st.markdown(f"🤖 **Bot:** {chat['answer']['Answer']}")
+                st.markdown(f"""
+                <div class="user-message-container">
+                    <div class="user-message">{chat['question']}</div>
+                </div>
+                <div class="bot-message-container">
+                    <div class="bot-message">{chat['answer']['Answer']}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
     display_chat_history()
 
@@ -434,23 +479,21 @@ def app():
         st.title("PDF Documents:")
         for idx, doc in enumerate(docs, start=1):
             retriever = doc.to_dict()
-            retriever['id'] = doc.id  # Add document ID to the retriever dictionary
+            retriever['id'] = doc.id
             retriever_name = retriever['retriever_name']
             retriever_description = retriever['retriever_description']
             with st.expander(retriever_name):
                 st.markdown(f"**Description:** {retriever_description}")
-                file_path, file_name = download_file_to_temp(retriever['document']) # Get the document file path and file name
+                file_path, file_name = download_file_to_temp(retriever['document'])
                 st.markdown(f"_**File Name**_: {file_name}")
                 retriever["file_path"] = file_path 
-                st.session_state["retrievers"][retriever_name] = retriever #populate the retriever dictionary
+                st.session_state["retrievers"][retriever_name] = retriever
         st.title("PDF Document Selection:")
         st.session_state["selected_retrievers"] = st.multiselect("Select Documents", list(st.session_state["retrievers"].keys()))  
         
-        #Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
         if st.button("Submit & Process", key="process_button"):
             if google_ai_api_key:
                 with st.spinner("Processing..."):
-                    # Get pdf docs of selected retrievers from st.session_state["selected_retrievers"]
                     selected_files = [st.session_state["retrievers"][name]["file_path"] for name in st.session_state["selected_retrievers"]]
                     raw_text = get_pdf_text(selected_files)
                     text_chunks = get_text_chunks(raw_text)
