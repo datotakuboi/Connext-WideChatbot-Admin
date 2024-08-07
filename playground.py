@@ -31,6 +31,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
 
+@st.dialog("Google Consent Authentication Link")
 def google_oauth_link(flow):
     auth_url, _ = flow.authorization_url(redirect_uris=st.secrets["web"]["redirect_uris"], prompt='consent')
     st.write("Please go to this URL and authorize access:")
@@ -39,6 +40,7 @@ def google_oauth_link(flow):
     return code
 
 def fetch_token_data():
+    """Fetch the token data from Firestore."""
     try:
         token_ref = st.session_state.db.collection('Token').limit(1)
         token_docs = token_ref.get()
@@ -129,37 +131,46 @@ def load_creds():
     return creds
 
 def download_file_to_temp(url):
+    # Create a temporary directory
     storage_client = storage.Client.from_service_account_info(st.session_state["connext_chatbot_admin_credentials"])
     bucket = storage_client.bucket('connext-chatbot-admin.appspot.com')
     temp_dir = tempfile.mkdtemp()
 
+    # Download the file
     response = requests.get(url)
     parsed_url = urlparse(url)
     file_name = os.path.basename(unquote(parsed_url.path))
 
     blob = bucket.blob(file_name)
+    
+    # Create the full path with the preferred filename
     temp_file_path = os.path.join(temp_dir, file_name)
+
     blob.download_to_filename(temp_file_path)
 
     return temp_file_path, file_name
 
 def extract_and_parse_json(text):
+    # Find the first opening and the last closing curly brackets
     start_index = text.find('{')
     end_index = text.rfind('}')
     
     if start_index == -1 or end_index == -1 or end_index < start_index:
-        return None, False
+        return None, False  # Proper JSON structure not found
 
+    # Extract the substring that contains the JSON
     json_str = text[start_index:end_index + 1]
 
     try:
+        # Attempt to parse the JSON
         parsed_json = json.loads(json_str)
         return parsed_json, True
     except json.JSONDecodeError:
-        return None, False
-
+        return None, False  # JSON parsing failed
+    
 def is_expected_json_content(json_data):
     try:
+        # Try to load the JSON data
         data = json.loads(json_data) if isinstance(json_data, str) else json_data
     except json.JSONDecodeError:
         return False
@@ -167,9 +178,9 @@ def is_expected_json_content(json_data):
     required_keys = ["Is_Answer_In_Context", "Answer"]
 
     if not all(key in data for key in required_keys):
-        return False
+            return False
     
-    return True
+    return True #All checks passed for the specified type
 
 def get_pdf_text(pdf_docs):
     text = ""
@@ -188,12 +199,12 @@ def get_vector_store(text_chunks, api_key):
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
-def get_generative_model(response_mime_type="text/plain"):
+def get_generative_model(response_mime_type = "text/plain"):
     generation_config = {
-        "temperature": 0.4,
-        "top_p": 1,
-        "max_output_tokens": 8192,
-        "response_mime_type": response_mime_type
+    "temperature": 0.4,
+    "top_p": 1,
+    "max_output_tokens": 8192,
+    "response_mime_type": response_mime_type
     }
 
     if st.session_state["oauth_creds"] is not None:
@@ -202,11 +213,13 @@ def get_generative_model(response_mime_type="text/plain"):
         st.session_state["oauth_creds"] = load_creds()
         genai.configure(credentials=st.session_state["oauth_creds"])
 
-    model = genai.GenerativeModel('tunedModels/connext-wide-chatbot-ddal5ox9d38h', generation_config=generation_config) if response_mime_type == "text/plain" else genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
+
+    model = genai.GenerativeModel('tunedModels/connext-wide-chatbot-ddal5ox9d38h' ,generation_config=generation_config) if response_mime_type == "text/plain" else genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
     print(f"Model selected: {model}")
     return model
 
-def generate_response(question, context, fine_tuned_knowledge=False):
+def generate_response(question, context, fine_tuned_knowledge = False):
+
     prompt_using_fine_tune_knowledge = f"""
     Based on your base or fine-tuned knowledge, can you answer the the following question?
 
@@ -246,7 +259,8 @@ def generate_response(question, context, fine_tuned_knowledge=False):
     
     return model.generate_content(prompt).text
 
-def try_get_answer(user_question, context="", fine_tuned_knowledge=False):
+def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
+
     parsed_result = {}
     if not fine_tuned_knowledge:
         response_json_valid = False
@@ -256,22 +270,22 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge=False):
             response = ""
 
             try:
-                response = generate_response(user_question, context, fine_tuned_knowledge)
+                response = generate_response(user_question, context , fine_tuned_knowledge)
             except Exception as e:
                 print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
-                max_attempts -= 1
+                max_attempts = max_attempts - 1
                 st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
                 continue
 
             parsed_result, response_json_valid = extract_and_parse_json(response)
-            if not response_json_valid:
+            if response_json_valid == False:
                 print(f"Failed to validate and parse json for the questions:\n {user_question}")
-                max_attempts -= 1
+                max_attempts = max_attempts - 1
                 st.toast(f"Failed to validate and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
                 continue
 
-            is_expected_json = is_expected_json_content(parsed_result)
-            if not is_expected_json:
+            is_expected_json = is_expected_json_content(parsed_result)  
+            if is_expected_json == False:
                 print(f"Successfully validated and parse json for the question: {user_question} but is not on expected format... Trying again...")
                 st.toast(f"Successfully validated and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
                 continue
@@ -280,7 +294,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge=False):
     else:
         try:
             print("Getting fine tuned knowledge...")
-            parsed_result = generate_response(user_question, context, fine_tuned_knowledge)
+            parsed_result = generate_response(user_question, context , fine_tuned_knowledge)
         except Exception as e:
             print(f"Failed to create response for the question:\n\n {user_question}")
             parsed_result = "" 
@@ -289,6 +303,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge=False):
     return parsed_result
 
 def user_input(user_question, api_key):
+    
     with st.spinner("Processing..."):
         st.session_state.show_fine_tuned_expander = True  
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
@@ -313,19 +328,23 @@ def user_input(user_question, api_key):
                 parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
     
     return parsed_result
+    
 
 def app():
-    google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
-    firestore_db = firestore.client()
-    st.session_state.db = firestore_db
 
-    col1, col2, col3 = st.columns([3, 4, 3])
+    google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
+    #Get firestore client
+    firestore_db=firestore.client()
+    st.session_state.db=firestore_db
+
+    # Center the logo image
+    col1, col2, col3 = st.columns([3,4,3])
 
     with col1:
         st.write(' ')
 
     with col2:
-        st.image("Connext_Logo.png", width=250)
+        st.image("Connext_Logo.png", width=250) 
 
     with col3:
         st.write(' ')
