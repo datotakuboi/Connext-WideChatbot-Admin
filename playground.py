@@ -11,7 +11,7 @@ import os
 import json
 import requests
 import tempfile
-from functools import lru_cache
+from functools import partial
 import datetime
 import pytz
 import mimetypes
@@ -31,7 +31,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ['https://www.googleapis.com/auth/generative-language.retriever']
 
-@st.dialog("Google Consent Authentication Link")
 def google_oauth_link(flow):
     auth_url, _ = flow.authorization_url(redirect_uris=st.secrets["web"]["redirect_uris"], prompt='consent')
     st.write("Please go to this URL and authorize access:")
@@ -40,7 +39,6 @@ def google_oauth_link(flow):
     return code
 
 def fetch_token_data():
-    """Fetch the token data from Firestore."""
     try:
         token_ref = st.session_state.db.collection('Token').limit(1)
         token_docs = token_ref.get()
@@ -130,13 +128,12 @@ def load_creds():
 
     return creds
 
-@lru_cache(maxsize=32)
 def download_file_to_temp(url):
-    # Create a temporary directory
     storage_client = storage.Client.from_service_account_info(st.session_state["connext_chatbot_admin_credentials"])
     bucket = storage_client.bucket('connext-chatbot-admin.appspot.com')
     temp_dir = tempfile.mkdtemp()
 
+    response = requests.get(url)
     parsed_url = urlparse(url)
     file_name = os.path.basename(unquote(parsed_url.path))
 
@@ -191,7 +188,7 @@ def get_vector_store(text_chunks, api_key):
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
 
-def get_generative_model(response_mime_type = "text/plain"):
+def get_generative_model(response_mime_type="text/plain"):
     generation_config = {
         "temperature": 0.4,
         "top_p": 1,
@@ -199,21 +196,19 @@ def get_generative_model(response_mime_type = "text/plain"):
         "response_mime_type": response_mime_type
     }
 
-    if "oauth_creds" not in st.session_state or st.session_state["oauth_creds"] is None:
-        st.session_state["oauth_creds"] = load_creds()
-
     if st.session_state["oauth_creds"] is not None:
         genai.configure(credentials=st.session_state["oauth_creds"])
     else:
-        st.error("Failed to load OAuth credentials.")
-        return None
+        st.session_state["oauth_creds"] = load_creds()
+        genai.configure(credentials=st.session_state["oauth_creds"])
 
     model = genai.GenerativeModel('tunedModels/connext-wide-chatbot-ddal5ox9d38h', generation_config=generation_config) if response_mime_type == "text/plain" else genai.GenerativeModel(model_name="gemini-1.5-flash", generation_config=generation_config)
+    print(f"Model selected: {model}")
     return model
 
-def generate_response(question, context, fine_tuned_knowledge = False):
+def generate_response(question, context, fine_tuned_knowledge=False):
     prompt_using_fine_tune_knowledge = f"""
-    Based on your base or fine-tuned knowledge, can you answer the following question?
+    Based on your base or fine-tuned knowledge, can you answer the the following question?
 
     --------------------
 
@@ -226,6 +221,7 @@ def generate_response(question, context, fine_tuned_knowledge = False):
 
     """
     prompt_with_context = f"""
+
     Answer the question below as detailed as possible from the provided context below, make sure to provide all the details but if the answer is not in
     provided context. Try not to make up an answer just for the sake of answering a question.
 
@@ -248,47 +244,53 @@ def generate_response(question, context, fine_tuned_knowledge = False):
     prompt = prompt_using_fine_tune_knowledge if fine_tuned_knowledge else prompt_with_context
     model = get_generative_model("text/plain" if fine_tuned_knowledge else "application/json")
     
-    if model is None:
-        return "Failed to load generative model."
-
     return model.generate_content(prompt).text
 
-def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
+def try_get_answer(user_question, context="", fine_tuned_knowledge=False):
     parsed_result = {}
-    response_json_valid = False
-    is_expected_json = False
-    max_attempts = 3
-    while not response_json_valid and max_attempts > 0:
-        response = ""
+    if not fine_tuned_knowledge:
+        response_json_valid = False
+        is_expected_json = False
+        max_attempts = 3
+        while not response_json_valid and max_attempts > 0:
+            response = ""
 
+            try:
+                response = generate_response(user_question, context, fine_tuned_knowledge)
+            except Exception as e:
+                print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
+                max_attempts -= 1
+                st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
+                continue
+
+            parsed_result, response_json_valid = extract_and_parse_json(response)
+            if not response_json_valid:
+                print(f"Failed to validate and parse json for the questions:\n {user_question}")
+                max_attempts -= 1
+                st.toast(f"Failed to validate and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
+                continue
+
+            is_expected_json = is_expected_json_content(parsed_result)
+            if not is_expected_json:
+                print(f"Successfully validated and parse json for the question: {user_question} but is not on expected format... Trying again...")
+                st.toast(f"Successfully validated and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
+                continue
+            
+            break
+    else:
         try:
-            response = generate_response(user_question, context, fine_tuned_knowledge)
+            print("Getting fine tuned knowledge...")
+            parsed_result = generate_response(user_question, context, fine_tuned_knowledge)
         except Exception as e:
-            st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
-            max_attempts -= 1
-            continue
-
-        if fine_tuned_knowledge:
-            return {"Answer": response.strip()}
-
-        parsed_result, response_json_valid = extract_and_parse_json(response)
-        if not response_json_valid:
-            st.toast(f"Failed to validate and parse JSON for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
-            max_attempts -= 1
-            continue
-
-        is_expected_json = is_expected_json_content(parsed_result)
-        if not is_expected_json:
-            st.toast(f"Successfully validated and parsed JSON for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
-            max_attempts -= 1
-            continue
-
-        break
+            print(f"Failed to create response for the question:\n\n {user_question}")
+            parsed_result = "" 
+            st.toast(f"Failed to create a response for your query.")
 
     return parsed_result
 
 def user_input(user_question, api_key):
     with st.spinner("Processing..."):
+        st.session_state.show_fine_tuned_expander = True  
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
@@ -297,32 +299,33 @@ def user_input(user_question, api_key):
 
         parsed_result = try_get_answer(user_question, context)
 
-    if not parsed_result.get("Is_Answer_In_Context", False):
-        parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
-
+        if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+            st.toast("Answer not found in the selected document. Attempting to scan other documents...")
+            remaining_docs = [d for d in st.session_state["retrievers"].values() if d["file_path"] not in context]
+            if remaining_docs:
+                remaining_context = "\n\n--------------------------\n\n".join([extract_text(d["file_path"]) for d in remaining_docs])
+                parsed_result = try_get_answer(user_question, remaining_context)
+                if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+                    st.toast("Attempting to generate an answer based on fine-tuned knowledge...")
+                    parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+            else:
+                st.toast("No other documents to scan. Attempting to generate an answer based on fine-tuned knowledge...")
+                parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+    
     return parsed_result
 
 def app():
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
+    firestore_db = firestore.client()
+    st.session_state.db = firestore_db
 
-    # Initialize Firebase Admin SDK
-    initialize_firebase()
-
-    # Load the credentials into the session state
-    if "connext_chatbot_admin_credentials" not in st.session_state:
-        st.session_state["connext_chatbot_admin_credentials"] = st.secrets["service_account"]
-
-    # Initialize Firestore
-    initialize_firestore()
-
-    # Center the logo image
     col1, col2, col3 = st.columns([3, 4, 3])
 
     with col1:
         st.write(' ')
 
     with col2:
-        st.image("Connext_Logo.png", width=250) 
+        st.image("Connext_Logo.png", width=250)
 
     with col3:
         st.write(' ')
@@ -372,7 +375,7 @@ def app():
                 }
                 .bot-message-container {
                     display: flex;
-                    justify-content: flex-start;
+                    justify-content: flex-start.
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -427,6 +430,31 @@ def app():
                 st.toast("Failed to get a valid response from the model.")
 
     display_chat_history()
+
+    if st.session_state.show_fine_tuned_expander:
+        with st.expander("Get fine-tuned answer?", expanded=True):
+            st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
+            col1, col2, _ = st.columns([1, 1, 1])
+            with col1:
+                if st.button("Yes", key=f"yes_button"):
+                    st.session_state.request_fine_tuned_answer = True
+                    st.session_state.show_fine_tuned_expander = False
+                    st.rerun()
+            with col2:
+                if st.button("No", key=f"no_button"):
+                    st.session_state.show_fine_tuned_expander = False
+                    st.rerun()
+
+    if st.session_state["request_fine_tuned_answer"]:
+        if st.session_state.chat_history:
+            with st.spinner("Generating fine-tuned answer..."):
+                fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
+            if fine_tuned_result:
+                st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
+                display_chat_history()
+            else:
+                st.toast("Failed to generate a fine-tuned answer.")
+        st.session_state["request_fine_tuned_answer"] = False
 
     with st.sidebar:
         st.title("PDF Documents:")
