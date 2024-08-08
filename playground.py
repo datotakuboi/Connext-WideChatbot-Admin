@@ -271,6 +271,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
 
             try:
                 response = generate_response(user_question, context , fine_tuned_knowledge)
+                st.write(f"Model Response: {response}")  # Debugging step to log the raw response
             except Exception as e:
                 print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
                 max_attempts = max_attempts - 1
@@ -278,6 +279,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
                 continue
 
             parsed_result, response_json_valid = extract_and_parse_json(response)
+            st.write(f"Parsed Result: {parsed_result}, Response Valid: {response_json_valid}")  # Debugging step
             if response_json_valid == False:
                 print(f"Failed to validate and parse json for the questions:\n {user_question}")
                 max_attempts = max_attempts - 1
@@ -285,6 +287,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
                 continue
 
             is_expected_json = is_expected_json_content(parsed_result)  
+            st.write(f"Is Expected JSON: {is_expected_json}")  # Debugging step
             if is_expected_json == False:
                 print(f"Successfully validated and parse json for the question: {user_question} but is not on expected format... Trying again...")
                 st.toast(f"Successfully validated and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
@@ -295,6 +298,7 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
         try:
             print("Getting fine tuned knowledge...")
             parsed_result = generate_response(user_question, context , fine_tuned_knowledge)
+            st.write(f"Fine-Tuned Model Response: {parsed_result}")  # Debugging step to log the raw response for fine-tuned knowledge
         except Exception as e:
             print(f"Failed to create response for the question:\n\n {user_question}")
             parsed_result = "" 
@@ -386,7 +390,7 @@ def app():
                     width: fit-content;
                     max-width: 70%;
                     word-wrap: break-word;
-                    font-size: 16px;
+                    font-size: 16px.
                 }
                 .user-message-container {
                     display: flex;
@@ -434,6 +438,7 @@ def app():
         else:
             if google_ai_api_key:
                 parsed_result = user_input(user_question, google_ai_api_key)
+                st.write(f"Final Parsed Result: {parsed_result}")  # Debugging step to log the final parsed result
                 st.session_state.parsed_result = parsed_result
                 if "Answer" in parsed_result:
                     st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
@@ -446,7 +451,7 @@ def app():
     with st.sidebar:
         st.title("Processing Documents...")
         process_all_documents(google_ai_api_key)
-        st.success("All documents have been processed and are ready for search.")
+        st.success("All documents have been processed.")
 
 if __name__ == "__main__":
     app()
