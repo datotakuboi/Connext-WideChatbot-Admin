@@ -444,16 +444,22 @@ def app():
     if 'show_fine_tuned_expander' not in st.session_state:
         st.session_state.show_fine_tuned_expander = False
 
-    if user_question and google_ai_api_key:
-        parsed_result = user_input(user_question, google_ai_api_key)
-        st.session_state.parsed_result = parsed_result
-        if "Answer" in parsed_result:
-            st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
-            display_chat_history()
-            if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
-                st.session_state.show_fine_tuned_expander = True
+    if user_question:
+        # Check for casual greetings
+        if user_question.lower() in ["hey chatbot", "hello chatbot", "hi chatbot" "hello", "hi", "hey", "hello there", "hi there", "hey there"]:
+            greeting_response = "Hello! How can I assist you today?"
+            st.session_state.chat_history.append({"question": user_question, "answer": {"Answer": greeting_response}})
         else:
-            st.toast("Failed to get a valid response from the model.")
+            if google_ai_api_key:
+                parsed_result = user_input(user_question, google_ai_api_key)
+                st.session_state.parsed_result = parsed_result
+                if "Answer" in parsed_result:
+                    st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
+                    display_chat_history()
+                    if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+                        st.session_state.show_fine_tuned_expander = True
+                else:
+                    st.toast("Failed to get a valid response from the model.")
 
     display_chat_history()
 
