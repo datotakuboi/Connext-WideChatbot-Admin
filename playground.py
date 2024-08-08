@@ -315,7 +315,7 @@ def user_input(user_question, api_key):
         parsed_result = try_get_answer(user_question, context)
 
         if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
-            st.toast("Answer not found in the selected document. Attempting to generate an answer based on fine-tuned knowledge...")
+            st.spinner("Searching for additional information...")
             parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
     
     return parsed_result
