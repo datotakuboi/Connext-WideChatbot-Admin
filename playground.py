@@ -410,7 +410,7 @@ def app():
 
     display_chat_history()
 
-    user_question = st.text_input("Ask a Question", key="user_question")
+    user_question = st.chat_input("Ask a Question", key="user_question")
     submit_button = st.button("Submit", key="submit_button")
     clear_history_button = st.button("Clear Chat History")
 
