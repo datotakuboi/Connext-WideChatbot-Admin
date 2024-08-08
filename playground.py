@@ -425,11 +425,6 @@ def app():
     """, unsafe_allow_html=True)
 
     user_question = st.chat_input("Ask a Question", key="user_question")
-    clear_history_button = st.button("Clear Chat History")
-
-    if clear_history_button:
-        st.session_state.chat_history = []
-        display_chat_history()
 
     if "retrievers" not in st.session_state:
         st.session_state["retrievers"] = {}
