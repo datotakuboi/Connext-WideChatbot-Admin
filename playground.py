@@ -410,8 +410,21 @@ def app():
 
     display_chat_history()
 
+    # Include JavaScript to handle Enter key press
+    st.markdown("""
+        <script>
+        const chatInput = window.parent.document.querySelector('textarea[aria-label="Ask a Question"]');
+        chatInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                const submitButton = window.parent.document.querySelector('button[aria-label="Submit"]');
+                submitButton.click();
+            }
+        });
+        </script>
+    """, unsafe_allow_html=True)
+
     user_question = st.chat_input("Ask a Question", key="user_question")
-    submit_button = st.button("Submit", key="submit_button")
     clear_history_button = st.button("Clear Chat History")
 
     if clear_history_button:
@@ -436,17 +449,16 @@ def app():
     if 'show_fine_tuned_expander' not in st.session_state:
         st.session_state.show_fine_tuned_expander = False
 
-    if submit_button:
-        if user_question and google_ai_api_key:
-            parsed_result = user_input(user_question, google_ai_api_key)
-            st.session_state.parsed_result = parsed_result
-            if "Answer" in parsed_result:
-                st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
-                display_chat_history()
-                if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
-                    st.session_state.show_fine_tuned_expander = True
-            else:
-                st.toast("Failed to get a valid response from the model.")
+    if user_question and google_ai_api_key:
+        parsed_result = user_input(user_question, google_ai_api_key)
+        st.session_state.parsed_result = parsed_result
+        if "Answer" in parsed_result:
+            st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
+            display_chat_history()
+            if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
+                st.session_state.show_fine_tuned_expander = True
+        else:
+            st.toast("Failed to get a valid response from the model.")
 
     display_chat_history()
 
