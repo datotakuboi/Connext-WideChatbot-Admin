@@ -305,7 +305,6 @@ def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
 def user_input(user_question, api_key):
     
     with st.spinner("Processing..."):
-        st.session_state.show_fine_tuned_expander = True  
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(user_question)
@@ -315,30 +314,34 @@ def user_input(user_question, api_key):
         parsed_result = try_get_answer(user_question, context)
 
         if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
-            st.toast("Answer not found in the selected document. Attempting to scan other documents...")
-            remaining_docs = [d for d in st.session_state["retrievers"].values() if d["file_path"] not in context]
-            if remaining_docs:
-                remaining_context = "\n\n--------------------------\n\n".join([extract_text(d["file_path"]) for d in remaining_docs])
-                parsed_result = try_get_answer(user_question, remaining_context)
-                if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
-                    st.toast("Attempting to generate an answer based on fine-tuned knowledge...")
-                    parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
-            else:
-                st.toast("No other documents to scan. Attempting to generate an answer based on fine-tuned knowledge...")
-                parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
+            st.toast("Answer not found in the selected document. Attempting to generate an answer based on fine-tuned knowledge...")
+            parsed_result = try_get_answer(user_question, context="", fine_tuned_knowledge=True)
     
     return parsed_result
-    
 
+def process_all_documents(api_key):
+    retrievers_ref = st.session_state.db.collection('Retrievers')
+    docs = retrievers_ref.stream()
+    all_files = []
+    for doc in docs:
+        retriever = doc.to_dict()
+        retriever['id'] = doc.id
+        file_path, file_name = download_file_to_temp(retriever['document'])
+        all_files.append(file_path)
+    
+    raw_text = get_pdf_text(all_files)
+    text_chunks = get_text_chunks(raw_text)
+    get_vector_store(text_chunks, api_key)
+    
 def app():
 
     google_ai_api_key = st.session_state["api_keys"]["GOOGLE_AI_STUDIO_API_KEY"]
     #Get firestore client
-    firestore_db=firestore.client()
-    st.session_state.db=firestore_db
+    firestore_db = firestore.client()
+    st.session_state.db = firestore_db
 
     # Center the logo image
-    col1, col2, col3 = st.columns([3,4,3])
+    col1, col2, col3 = st.columns([3, 4, 3])
 
     with col1:
         st.write(' ')
@@ -350,9 +353,6 @@ def app():
         st.write(' ')
 
     st.markdown('## Welcome to :blue[Connext Chatbot] :robot_face:')
-
-    retrievers_ref = st.session_state.db.collection('Retrievers')
-    docs = retrievers_ref.stream()
 
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
@@ -426,27 +426,9 @@ def app():
 
     user_question = st.chat_input("Ask a Question", key="user_question")
 
-    if "retrievers" not in st.session_state:
-        st.session_state["retrievers"] = {}
-
-    if "selected_retrievers" not in st.session_state:
-        st.session_state["selected_retrievers"] = []
-
-    if "answer" not in st.session_state:
-        st.session_state["answer"] = ""
-
-    if "request_fine_tuned_answer" not in st.session_state:
-        st.session_state["request_fine_tuned_answer"] = False
-
-    if 'fine_tuned_answer_expander_state' not in st.session_state:
-        st.session_state.fine_tuned_answer_expander_state = False
-
-    if 'show_fine_tuned_expander' not in st.session_state:
-        st.session_state.show_fine_tuned_expander = False
-
     if user_question:
         # Check for casual greetings
-        if user_question.lower() in ["hey chatbot", "hello chatbot", "hi chatbot" "hello", "hi", "hey", "hello there", "hi there", "hey there"]:
+        if user_question.lower() in ["hey chatbot", "hello chatbot", "hi chatbot", "hello", "hi", "hey", "hello there", "hi there", "hey there"]:
             greeting_response = "Hello! How can I assist you today?"
             st.session_state.chat_history.append({"question": user_question, "answer": {"Answer": greeting_response}})
         else:
@@ -456,64 +438,15 @@ def app():
                 if "Answer" in parsed_result:
                     st.session_state.chat_history.append({"question": user_question, "answer": parsed_result})
                     display_chat_history()
-                    if "Is_Answer_In_Context" in parsed_result and not parsed_result["Is_Answer_In_Context"]:
-                        st.session_state.show_fine_tuned_expander = True
                 else:
                     st.toast("Failed to get a valid response from the model.")
 
     display_chat_history()
 
-    if st.session_state.show_fine_tuned_expander:
-        with st.expander("Get fine-tuned answer?", expanded=True):
-            st.write("Would you like me to generate the answer based on my fine-tuned knowledge?")
-            col1, col2, _ = st.columns([1, 1, 1])
-            with col1:
-                if st.button("Yes", key=f"yes_button"):
-                    st.session_state.request_fine_tuned_answer = True
-                    st.session_state.show_fine_tuned_expander = False
-                    st.rerun()
-            with col2:
-                if st.button("No", key=f"no_button"):
-                    st.session_state.show_fine_tuned_expander = False
-                    st.rerun()
-
-    if st.session_state["request_fine_tuned_answer"]:
-        if st.session_state.chat_history:
-            with st.spinner("Generating fine-tuned answer..."):
-                fine_tuned_result = try_get_answer(st.session_state.chat_history[-1]['question'], context="", fine_tuned_knowledge=True)
-            if fine_tuned_result:
-                st.session_state.chat_history[-1]['answer'] = {"Answer": fine_tuned_result.strip()}
-                display_chat_history()
-            else:
-                st.toast("Failed to generate a fine-tuned answer.")
-        st.session_state["request_fine_tuned_answer"] = False
-
     with st.sidebar:
-        st.title("PDF Documents:")
-        for idx, doc in enumerate(docs, start=1):
-            retriever = doc.to_dict()
-            retriever['id'] = doc.id
-            retriever_name = retriever['retriever_name']
-            retriever_description = retriever['retriever_description']
-            with st.expander(retriever_name):
-                st.markdown(f"**Description:** {retriever_description}")
-                file_path, file_name = download_file_to_temp(retriever['document'])
-                st.markdown(f"_**File Name**_: {file_name}")
-                retriever["file_path"] = file_path 
-                st.session_state["retrievers"][retriever_name] = retriever
-        st.title("PDF Document Selection:")
-        st.session_state["selected_retrievers"] = st.multiselect("Select Documents", list(st.session_state["retrievers"].keys()))  
-        
-        if st.button("Submit & Process", key="process_button"):
-            if google_ai_api_key:
-                with st.spinner("Processing..."):
-                    selected_files = [st.session_state["retrievers"][name]["file_path"] for name in st.session_state["selected_retrievers"]]
-                    raw_text = get_pdf_text(selected_files)
-                    text_chunks = get_text_chunks(raw_text)
-                    get_vector_store(text_chunks, google_ai_api_key)
-                    st.success("Done")
-            else:
-                st.toast("Failed to process the documents", icon="💥")
+        st.title("Processing Documents...")
+        process_all_documents(google_ai_api_key)
+        st.success("All documents have been processed and are ready for search.")
 
 if __name__ == "__main__":
     app()
