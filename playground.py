@@ -256,49 +256,50 @@ def generate_response(question, context, fine_tuned_knowledge = False):
 
     prompt = prompt_using_fine_tune_knowledge if fine_tuned_knowledge else prompt_with_context
     model = get_generative_model("text/plain" if fine_tuned_knowledge else "application/json")
+
+    if model is None:
+        return "Failed to load generative model."
+
+    response = model.generate_content(prompt).text
+
+    if fine_tuned_knowledge:
+        return response.strip()  # For fine-tuned knowledge, return the response directly.
+
+    return response
     
     return model.generate_content(prompt).text
 
-def try_get_answer(user_question, context="", fine_tuned_knowledge = False):
-
+def try_get_answer(user_question, context="", fine_tuned_knowledge=False):
     parsed_result = {}
-    if not fine_tuned_knowledge:
-        response_json_valid = False
-        is_expected_json = False
-        max_attempts = 3
-        while not response_json_valid and max_attempts > 0:
-            response = ""
+    response_json_valid = False
+    is_expected_json = False
+    max_attempts = 3
+    while not response_json_valid and max_attempts > 0:
+        response = ""
 
-            try:
-                response = generate_response(user_question, context , fine_tuned_knowledge)
-            except Exception as e:
-                print(f"Failed to create response for the question:\n{user_question}\n\n Error Code: {str(e)}")
-                max_attempts = max_attempts - 1
-                st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
-                continue
-
-            parsed_result, response_json_valid = extract_and_parse_json(response)
-            if response_json_valid == False:
-                print(f"Failed to validate and parse json for the questions:\n {user_question}")
-                max_attempts = max_attempts - 1
-                st.toast(f"Failed to validate and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
-                continue
-
-            is_expected_json = is_expected_json_content(parsed_result)  
-            if is_expected_json == False:
-                print(f"Successfully validated and parse json for the question: {user_question} but is not on expected format... Trying again...")
-                st.toast(f"Successfully validated and parse json for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
-                continue
-            
-            break
-    else:
         try:
-            print("Getting fine tuned knowledge...")
-            parsed_result = generate_response(user_question, context , fine_tuned_knowledge)
+            response = generate_response(user_question, context, fine_tuned_knowledge)
         except Exception as e:
-            print(f"Failed to create response for the question:\n\n {user_question}")
-            parsed_result = "" 
-            st.toast(f"Failed to create a response for your query.")
+            st.toast(f"Failed to create a response for your query.\n Error Code: {str(e)} \nTrying again... Retries left: {max_attempts} attempt/s")
+            max_attempts -= 1
+            continue
+
+        if fine_tuned_knowledge:
+            return {"Answer": response}
+
+        parsed_result, response_json_valid = extract_and_parse_json(response)
+        if not response_json_valid:
+            st.toast(f"Failed to validate and parse JSON for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
+            max_attempts -= 1
+            continue
+
+        is_expected_json = is_expected_json_content(parsed_result)
+        if not is_expected_json:
+            st.toast(f"Successfully validated and parsed JSON for your query.\n Trying again... Retries left: {max_attempts} attempt/s")
+            max_attempts -= 1
+            continue
+
+        break
 
     return parsed_result
 
@@ -386,11 +387,11 @@ def app():
                     width: fit-content;
                     max-width: 70%;
                     word-wrap: break-word;
-                    font-size: 16px.
+                    font-size: 16px;
                 }
                 .user-message-container {
                     display: flex;
-                    justify-content: flex-end.
+                    justify-content: flex-end;
                 }
                 .bot-message-container {
                     display: flex;
